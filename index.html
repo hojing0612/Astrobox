@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#050814" />
+  <meta name="description" content="질문에서 시작해 직접 실험하고 설명하는 AI 우주 탐구 데모" />
+  <title>AstroBox — 우주 탐구 미션</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23050814'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%235d8dff'/%3E%3Cellipse cx='32' cy='32' rx='25' ry='10' fill='none' stroke='%23ff6a3d' stroke-width='4' transform='rotate(-20 32 32)'/%3E%3C/svg%3E" />
+  <style>
+    :root{--bg:#050814;--surface:#0b1221;--surface2:#101b31;--line:#202e4c;--muted:#91a0bd;--text:#f7f9ff;--accent:#ff6237;--blue:#5aa9ff;--green:#46d49a;--radius:22px}
+    *{box-sizing:border-box} html{background:var(--bg);color:var(--text);font-family:Inter,"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif} body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 45%,#0b1630 0,#050814 45%,#02040a 100%)} button,input,textarea{font:inherit}
+    button{color:inherit}.hidden{display:none!important}
+    .intro{position:fixed;inset:0;z-index:10;display:grid;place-items:center;overflow:hidden;background:#02040b;transition:opacity .8s ease,visibility .8s ease}.intro.leaving{opacity:0;visibility:hidden}.intro::before,.intro::after{content:"";position:absolute;inset:-20%;background-image:radial-gradient(circle,#fff 0 1px,transparent 1.4px);background-size:94px 94px;opacity:.35;animation:drift 26s linear infinite}.intro::after{background-size:157px 157px;opacity:.2;animation-duration:38s;animation-direction:reverse}.nebula{position:absolute;width:min(70vw,900px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(38,82,180,.26),rgba(75,29,120,.12) 45%,transparent 72%);filter:blur(22px)}.intro-inner{position:relative;z-index:1;text-align:center}.brand{margin:0;font-size:clamp(3.4rem,10vw,8rem);letter-spacing:-.07em;font-weight:800}.brand span,.logo span{color:var(--accent)}.intro p{margin:1rem 0 2.2rem;color:#aab6d2;font-size:clamp(1rem,2vw,1.2rem);letter-spacing:.02em}.start{border:1px solid rgba(255,255,255,.42);background:rgba(255,255,255,.08);backdrop-filter:blur(10px);border-radius:999px;padding:.9rem 2rem;min-width:145px;cursor:pointer;transition:.25s}.start:hover,.start:focus-visible{background:#fff;color:#060914;transform:translateY(-2px)}
+    .app{min-height:100vh;opacity:0;transition:opacity .7s ease}.app.ready{opacity:1}.topbar{height:72px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #18233a;background:rgba(5,8,20,.86);backdrop-filter:blur(16px);position:sticky;top:0;z-index:5}.logo{font-size:1.35rem;font-weight:800;letter-spacing:-.05em}.mission-title{font-size:.9rem;color:var(--muted);margin-left:18px}.progress{display:flex;gap:12px;color:var(--muted);font-size:.82rem;align-items:center}.step-dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:#26334f;margin-right:5px}.step-dot.active{background:var(--accent);box-shadow:0 0 14px rgba(255,98,55,.6)}
+    .workspace{max-width:1600px;margin:auto;padding:22px;display:grid;grid-template-columns:minmax(280px,.78fr) minmax(460px,1.55fr) minmax(300px,.9fr);gap:18px;min-height:calc(100vh - 72px)}.panel{background:linear-gradient(160deg,rgba(16,27,49,.96),rgba(9,16,30,.96));border:1px solid var(--line);border-radius:var(--radius);padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.16)}.eyebrow{color:#8fa4ca;font-size:.78rem;font-weight:700;letter-spacing:.04em;margin-bottom:10px}.panel h2{font-size:1.45rem;line-height:1.35;letter-spacing:-.03em;margin:0 0 20px}.choices{display:grid;gap:10px}.choice{width:100%;padding:16px;border:1px solid #2a3a5e;background:#101a2d;border-radius:14px;text-align:left;cursor:pointer;transition:.2s}.choice:hover{border-color:#50678f}.choice.active{border-color:var(--accent);background:rgba(255,98,55,.1)}.choice b{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#24324f;margin-right:10px}.choice.active b{background:var(--accent)}.reason{margin-top:13px;width:100%;min-height:78px;resize:none;border:1px dashed #344564;background:#0d1729;border-radius:14px;color:var(--text);padding:13px;line-height:1.5}.primary{width:100%;border:0;border-radius:14px;background:var(--accent);padding:15px;margin-top:16px;font-weight:750;cursor:pointer;box-shadow:0 12px 30px rgba(255,98,55,.22);transition:.2s}.primary:hover{filter:brightness(1.08);transform:translateY(-1px)}
+    .sim-panel{display:flex;flex-direction:column}.sim-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.sim-head h2{font-size:1rem;margin:0}.legend{display:grid;gap:6px;font-size:.75rem;color:#bbc7df;background:#111c31;border:1px solid var(--line);padding:10px 12px;border-radius:12px}.legend i{display:inline-block;width:20px;height:3px;border-radius:5px;margin-right:8px;vertical-align:middle}.space{position:relative;flex:1;min-height:450px;display:grid;place-items:center;overflow:hidden}.earth{position:relative;width:170px;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 28%,#62b9ff,#1764dc 35%,#083996 72%);box-shadow:inset -22px -20px 40px rgba(0,0,0,.35),0 0 0 7px rgba(95,158,255,.28),0 0 60px rgba(50,110,255,.38)}.earth::after{content:"";position:absolute;inset:18% 52% 58% 12%;border-radius:50%;background:rgba(77,213,166,.52);transform:rotate(-18deg);filter:blur(3px)}.orbit{position:absolute;width:290px;aspect-ratio:1;border:4px solid var(--accent);border-radius:50%;transition:.45s ease;box-shadow:0 0 24px rgba(255,98,55,.14)}.satellite{position:absolute;left:50%;top:-10px;width:20px;height:20px;border:4px solid white;border-radius:50%;background:#cbd7ed;box-shadow:0 0 0 8px rgba(255,98,55,.18);transform:translateX(-50%)}.orbit.escape{width:370px;border-color:var(--blue);border-bottom-color:transparent;border-left-color:transparent;transform:rotate(-26deg)}.orbit.crash{width:230px;height:300px;border-color:#9fb4d9;border-left-style:dashed;transform:translate(-45px,-45px) rotate(30deg)}.status{position:absolute;bottom:15%;left:50%;transform:translateX(-50%);padding:8px 12px;border-radius:999px;background:rgba(3,8,18,.78);border:1px solid #2a3857;color:#b9c6df;font-size:.8rem;white-space:nowrap}.controls{background:#101a2e;border:1px solid var(--line);border-radius:16px;padding:15px 18px}.control-row{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center}.control-row label{font-weight:700}.speed-value{color:var(--accent);font-weight:800;min-width:72px;text-align:right}.slider{width:100%;accent-color:var(--accent)}.locks{margin-top:10px;color:#8293b2;font-size:.76rem}.locks span{display:inline-block;border:1px solid #2a3a59;border-radius:999px;padding:4px 8px;margin:3px}
+    .coach{display:flex;flex-direction:column;gap:14px}.bubble{border-radius:15px;padding:14px 15px;line-height:1.55;font-size:.9rem}.bubble.ai{background:#172643}.bubble.user{background:rgba(255,98,55,.12);border:1px solid rgba(255,98,55,.55);margin-left:16%}.card{border:1px solid #293955;border-radius:16px;background:#09111f;padding:16px}.card h3{font-size:.9rem;color:var(--accent);margin:0 0 12px}.card dl{display:grid;grid-template-columns:68px 1fr;gap:10px;margin:0;font-size:.82rem}.card dt{color:#8394b2;font-weight:700}.card dd{margin:0;line-height:1.45}.card input{width:100%;border:0;border-bottom:1px dashed #3d4b68;background:transparent;color:var(--text);padding:3px 0;outline:none}.next{margin-top:auto;background:#101b2f;border:1px solid #273956;border-radius:16px;padding:15px}.next small{color:#8192b0}.next h3{font-size:.95rem;margin:8px 0}.ghost{width:100%;border:1px solid var(--accent);background:transparent;color:var(--accent);border-radius:12px;padding:11px;margin-top:10px;cursor:pointer}.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#f6f8ff;color:#07101f;padding:12px 18px;border-radius:999px;font-weight:700;opacity:0;pointer-events:none;transition:.25s;z-index:20}.toast.show{opacity:1;transform:translate(-50%,0)}
+    @keyframes drift{to{transform:translate3d(94px,94px,0)}}
+    @media(max-width:1050px){.workspace{grid-template-columns:1fr 1.4fr}.coach{grid-column:1/-1}.next{margin-top:0}.space{min-height:420px}}
+    @media(max-width:720px){.topbar{height:auto;min-height:66px;padding:14px 18px}.mission-title,.progress{display:none}.workspace{display:flex;flex-direction:column;padding:12px}.panel{padding:18px}.sim-panel{min-height:600px}.space{min-height:360px}.earth{width:140px}.orbit{width:240px}.orbit.escape{width:310px}.orbit.crash{width:195px;height:250px}.control-row{grid-template-columns:1fr auto}.control-row input{grid-column:1/-1;grid-row:2}.intro p{padding:0 22px}}
+    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation-duration:.001ms!important;transition-duration:.001ms!important}}
+  </style>
+</head>
+<body>
+  <section class="intro" id="intro" aria-label="AstroBox 시작 화면">
+    <div class="nebula"></div>
+    <div class="intro-inner">
+      <h1 class="brand">Astro<span>Box</span></h1>
+      <p>질문 하나로 시작하는 나만의 우주 실험</p>
+      <button class="start" id="startBtn">Start mission</button>
+    </div>
+  </section>
+
+  <main class="app" id="app">
+    <header class="topbar">
+      <div><strong class="logo">Astro<span>Box</span></strong><span class="mission-title">미션 2 · 엔진을 꺼도 위성이 계속 돌까?</span></div>
+      <div class="progress"><span><i class="step-dot active"></i>예측</span><span><i class="step-dot active"></i>실험</span><span><i class="step-dot"></i>설명</span><span><i class="step-dot"></i>새 조건</span></div>
+    </header>
+    <div class="workspace">
+      <section class="panel prediction">
+        <div class="eyebrow">① 예측 · 어떻게 될까?</div>
+        <h2>엔진을 끄면 위성은 어떻게 움직일까요?</h2>
+        <div class="choices" role="radiogroup" aria-label="예상 궤적">
+          <button class="choice" data-choice="A" role="radio" aria-checked="false"><b>A</b> 바로 지구로 떨어진다</button>
+          <button class="choice active" data-choice="B" role="radio" aria-checked="true"><b>B</b> 옆으로 가던 속력 때문에 계속 돈다</button>
+          <button class="choice" data-choice="C" role="radio" aria-checked="false"><b>C</b> 점점 느려지다가 멈춘다</button>
+        </div>
+        <textarea class="reason" id="reason" aria-label="예측한 이유">속도가 있으면 계속 갈 것 같아요. 그런데 중력이 당기니까 돌 것 같아요.</textarea>
+        <button class="primary" id="runBtn">이대로 실험하기 →</button>
+      </section>
+
+      <section class="panel sim-panel">
+        <div class="sim-head"><div><div class="eyebrow">② 실험 · 조건 하나만 바꾸기</div><h2>옆방향 속력 <span id="headSpeed">7.8</span> km/s · 고도 400 km</h2></div><div class="legend"><span><i style="background:#9fb4d9"></i>5.0 · 떨어짐</span><span><i style="background:#ff6237"></i>7.8 · 계속 돎</span><span><i style="background:#5aa9ff"></i>11.2 · 벗어남</span></div></div>
+        <div class="space" aria-label="위성 궤도 시뮬레이션">
+          <div class="orbit" id="orbit"><div class="satellite"></div></div>
+          <div class="earth" aria-label="지구"></div>
+          <div class="status" id="status">공전 12회째 · 궤도 유지 중</div>
+        </div>
+        <div class="controls">
+          <div class="control-row"><label for="speed">옆방향 속력</label><input class="slider" id="speed" type="range" min="5" max="11.2" value="7.8" step="0.1" /><output class="speed-value" id="speedValue">7.8 km/s</output></div>
+          <div class="locks">잠금 <span>고도 400 km</span><span>질량</span><span>공기 저항 없음</span> · 한 번에 하나만 바꿔요</div>
+        </div>
+      </section>
+
+      <aside class="panel coach">
+        <div><div class="eyebrow">③ AI 되묻기 · 답은 알려주지 않아요</div><div class="bubble ai" id="aiBubble">5.0 km/s에서는 왜 떨어졌을까? 7.8일 때랑 무엇이 달랐을까?</div><div class="bubble user">옆으로 가는 힘이 약해서 중력한테 진 것 같아요.</div><div class="bubble ai">좋아. 그럼 ‘힘’이라고 말한 걸 ‘속도’로 바꿔서 다시 설명해 볼래?</div></div>
+        <div class="card"><h3>④ 설명 카드 · 내 말로 쓰기</h3><dl><dt>처음 생각</dt><dd id="initialThought">엔진을 끄면 계속 돌 것 같았다</dd><dt>관찰</dt><dd id="observation">7.8 km/s면 궤도를 유지했다</dd><dt>다시 설명</dt><dd><input id="explanation" placeholder="여기에 내 말로 써 보세요…" /></dd><dt>다음 확인</dt><dd>고도 800 km에서도 7.8이면 돌까?</dd></dl></div>
+        <div class="next"><small>다음 미션 예고 · 미션 3</small><h3>🚀 달까지 연료 최소로 가기</h3><small>지구가 남긴 ‘고도 800 km’ 질문에서 이어져요.</small><button class="ghost" id="requestBtn">부모님께 요청하기</button></div>
+      </aside>
+    </div>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite">다음 미션 요청을 보냈어요</div>
+  <script>
+    const intro=document.getElementById('intro'),app=document.getElementById('app');
+    document.getElementById('startBtn').addEventListener('click',()=>{intro.classList.add('leaving');app.classList.add('ready');setTimeout(()=>intro.classList.add('hidden'),850)});
+    const choices=[...document.querySelectorAll('.choice')],thought=document.getElementById('initialThought');
+    choices.forEach(btn=>btn.addEventListener('click',()=>{choices.forEach(x=>{x.classList.remove('active');x.setAttribute('aria-checked','false')});btn.classList.add('active');btn.setAttribute('aria-checked','true');thought.textContent=btn.textContent.replace(btn.dataset.choice,'').trim()}));
+    const speed=document.getElementById('speed'),speedValue=document.getElementById('speedValue'),headSpeed=document.getElementById('headSpeed'),orbit=document.getElementById('orbit'),status=document.getElementById('status'),observation=document.getElementById('observation'),ai=document.getElementById('aiBubble');
+    function updateOrbit(){const v=Number(speed.value);speedValue.textContent=v.toFixed(1)+' km/s';headSpeed.textContent=v.toFixed(1);orbit.className='orbit';if(v<6.7){orbit.classList.add('crash');status.textContent='궤도 감소 · 지구로 떨어지는 중';observation.textContent=v.toFixed(1)+' km/s에서는 지구로 떨어졌다';ai.textContent='속력이 작아지자 궤도 모양은 어떻게 달라졌어? 지구 쪽으로 얼마나 휘었을까?'}else if(v>9.5){orbit.classList.add('escape');status.textContent='궤도 이탈 · 멀어지는 중';observation.textContent=v.toFixed(1)+' km/s에서는 지구에서 멀어졌다';ai.textContent='속력이 커지자 지구의 중력은 위성의 방향을 충분히 휘게 만들었을까?'}else{status.textContent='공전 12회째 · 궤도 유지 중';observation.textContent=v.toFixed(1)+' km/s면 궤도를 유지했다';ai.textContent='엔진이 꺼졌는데도 계속 도는 데 필요한 두 가지는 무엇일까?'}}
+    speed.addEventListener('input',updateOrbit);
+    document.getElementById('runBtn').addEventListener('click',()=>{document.querySelector('.sim-panel').scrollIntoView({behavior:'smooth',block:'center'});updateOrbit()});
+    const toast=document.getElementById('toast');document.getElementById('requestBtn').addEventListener('click',()=>{toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2200)});
+  </script>
+</body>
+</html>
