@@ -82,28 +82,63 @@ input[type=range]{cursor:grab;transition:filter .2s}input[type=range]:hover{filt
 .facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.facts .f{background:#0d1527;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:.84rem;line-height:1.45}.facts .f b{display:block;font-size:1.05rem}
 @media (max-width:760px){.facts{grid-template-columns:1fr}.dex{grid-template-columns:repeat(2,1fr)}.calendar .date{font-size:1.7rem}}
 
-/* 로켓 탐구: 작은 화면에서는 예측 패널과 장면을 세로로 배치해요. */
-.rocket-wrap { max-width: 1480px; }
-.rocket-intro { margin-bottom: 18px; }
-.rocket-intro h1 { margin: 8px 0; }
-.rocket-layout { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
-.rocket-study { display: grid; gap: 14px; }
-.rocket-study fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
-.rocket-study legend { font-weight: 700; margin-bottom: 14px; }
-.rocket-study label { display: block; margin: 10px 0 6px; }
-.rocket-study input[type=range] { width: 100%; }
-.rocket-study output { color: var(--accent); font-weight: 700; }
-.rocket-study .reason { width: 100%; }
-.rocket-study .choice { display: flex; gap: 8px; align-items: center; }
-.rocket-study .choice:has(input:checked) { border-color: var(--accent); background: #ff623718; }
-.rocket-study fieldset:disabled { opacity: .7; }
+/* 로켓 탐구: 첫 화면에는 로켓과 발사 준비, 이후에는 현재 단계의 행동만 보여요. */
+.rocket-wrap { max-width: 1440px; }
+.rocket-wrap [hidden] { display: none !important; }
+.rocket-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 0 16px; scroll-margin-top: 76px; }
+.rocket-heading h1 { margin: 0; font-size: 1.4rem; }
+.rocket-steps { display: flex; gap: 14px; list-style: none; padding: 0; margin: 0; font-size: .82rem; color: var(--muted); }
+.rocket-steps li[aria-current] { color: var(--amber); font-weight: 800; }
+.rocket-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(290px, 360px); gap: 18px; align-items: center; }
 .rocket-stage { min-width: 0; }
-.rocket-stage h2 { margin: 0 0 10px; }
-.rocket-stage iframe { width: 100%; height: min(760px, 80vh); min-height: 540px; border: 1px solid var(--line); border-radius: 16px; background: #000; display: block; }
-#rocketResult .primary { margin-top: 14px; width: 100%; }
-#rocketObservation { font-variant-numeric: tabular-nums; line-height: 1.7; }
+.rocket-stage iframe { width: 100%; height: clamp(460px, 70vh, 680px); border: 1px solid var(--line); border-radius: 20px; background: #000; display: block; }
+.rocket-study fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.rocket-study legend { font-size: 1.2rem; line-height: 1.5; font-weight: 800; margin-bottom: 20px; }
+.rocket-fuel-label { display: flex; justify-content: space-between; align-items: center; font-size: .9rem; }
+.rocket-fuel-label output { color: var(--amber); font-weight: 800; font-size: 1.15rem; }
+.rocket-study input[type=range] { width: 100%; min-height: 36px; margin: 0; }
+.rocket-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0 16px; }
+.rocket-study .choice { min-height: 48px; margin: 0; padding: 8px; font-size: .85rem; gap: 5px; cursor: pointer; }
+.rocket-study input[type=radio] { accent-color: var(--accent); margin: 0; }
+.rocket-study .choice:has(input:checked) { border-color: var(--accent); background: #ff623718; }
+.rocket-study .choice:focus-within { outline: 2px solid var(--amber); outline-offset: 2px; }
+.rocket-study button { min-height: 44px; }
+.rocket-study :focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+.rocket-optional { font-size: .8rem; color: var(--muted); margin-top: 14px; }
+.rocket-optional summary { cursor: pointer; padding: 8px 0; }
+.rocket-optional p { line-height: 1.65; }
+.rocket-optional label { display: block; margin: 8px 0; }
+.rocket-study .reason { margin-top: 8px; min-height: 80px; }
+#rocketNext { min-height: 44px; }
+#rocketStatus { margin: 10px 0 0; font-size: .75rem; line-height: 1.5; }
+.rocket-moment { font-size: 1.1rem; line-height: 1.65; color: #d5e4ff; min-height: 3.3em; }
+.rocket-speed { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: .85rem; }
+.rocket-speed span { width: 100%; margin-bottom: 4px; color: var(--muted); }
+.rocket-speed button[aria-pressed=true] { border-color: var(--amber); color: var(--amber); }
+.rocket-text-button { border: 0; background: none; padding: 8px 0; text-decoration: underline; color: var(--muted); }
+.rocket-feedback { line-height: 1.6; color: var(--amber); }
+#rocketOutcome { font-size: 1.3rem; line-height: 1.5; word-break: keep-all; }
+#rocketWriteCard { width: 100%; margin-top: 10px; }
+#rocketSave { margin-top: 14px; }
+#rocketSaved { font-size: .9rem; line-height: 1.6; color: var(--green); }
+.rocket-footnote { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-top: 16px; color: var(--muted); font-size: .75rem; line-height: 1.65; }
+.rocket-footnote details { max-width: 800px; }
+.rocket-footnote summary { cursor: pointer; }
+.rocket-footnote a { white-space: nowrap; }
 @media (max-width: 900px) {
-  .rocket-layout { display: flex; flex-direction: column; }
-  .rocket-study, .rocket-stage { width: 100%; }
-  .rocket-stage iframe { min-height: 580px; height: 75vh; }
+  .rocket-wrap { padding: 12px; }
+  .rocket-heading { flex-wrap: wrap; margin-bottom: 10px; gap: 8px; }
+  .rocket-heading h1 { font-size: 1.2rem; }
+  .rocket-steps { font-size: .75rem; gap: 10px; }
+  .rocket-layout { grid-template-columns: 1fr; gap: 10px; }
+  .rocket-stage iframe { height: clamp(160px, 29svh, 250px); border-radius: 16px; }
+  .rocket-study { padding: 14px; }
+  .rocket-study legend { font-size: 1rem; margin-bottom: 10px; }
+  .rocket-choices { margin: 6px 0 10px; }
+  .rocket-study .choice { font-size: .82rem; }
+  .rocket-optional { margin-top: 8px; }
+  .rocket-wrap[data-phase=flight] .rocket-stage iframe { height: clamp(270px, 48svh, 500px); }
+  .rocket-wrap[data-phase=result] .rocket-stage iframe, .rocket-wrap[data-phase=card] .rocket-stage iframe { height: clamp(150px, 24svh, 230px); }
+  .rocket-moment { margin: 8px 0 14px; }
+  .rocket-footnote { gap: 10px; }
 }
