@@ -1,6 +1,8 @@
 // AstroBox 앱 — 해시 라우팅: #home · #m/<id> · #report · #stars · #timeline
 import { MISSIONS, byId } from './missions.js';
 import { OrbitView } from './render.js';
+import { OrbitView3D } from './render3d.js';
+import { confetti, shake, penguinReact, stars, sound } from './fx.js';
 import { askCoach, ladder } from './coach.js';
 import * as store from './store.js';
 import * as account from './account.js';
@@ -9,6 +11,7 @@ import { starFate, TIMELINE } from './content.js';
 import * as P from './physics.js';
 
 const $ = (s, el = document) => el.querySelector(s);
+function makeView(canvas) { try { if (!document.createElement('canvas').getContext('webgl2') && !document.createElement('canvas').getContext('webgl')) throw new Error('no webgl'); return new OrbitView3D(canvas); } catch (e) { console.warn('3D 실패, 2D로', e); return new OrbitView(canvas); } }
 const root = $('#root');
 const fmt = (n, d = 2) => Number(n).toFixed(d);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -21,7 +24,7 @@ function renderHome() {
   setNav('home');
   const sum = store.summary();
   root.innerHTML = `
-  <section class="hero"><h1>Astro<span>Box</span></h1><p>질문 하나로 시작하는 나만의 우주 실험 — 예측하고, 하나만 바꿔 보고, 내 말로 설명한다</p>
+  <section class="hero"><img class="penguin float" src="assets/penguin-256.png" alt="펭귄 우주비행사" width="150" height="150"><h1>Astro<span>Box</span></h1><p>질문 하나로 시작하는 나만의 우주 실험 — 예측하고, 하나만 바꿔 보고, 내 말로 설명한다</p>
     <a class="primary" style="display:inline-block;width:auto;padding:12px 26px;text-decoration:none" href="#m/m1">첫 미션 시작 →</a></section>
   <div class="wrap"><div class="grid">
     ${MISSIONS.map((m) => { const s = sum.byMission[m.id]; const locked = !unlock.isUnlocked(m.id); return `<a class="card ${locked ? 'locked' : ''}" href="#m/${m.id}"><div class="n">${locked ? '🔒' : m.order}</div><h3>${esc(m.title)}</h3><p>${esc(m.intro)}</p><div class="tag">${locked ? '미션 팩 · 부모님이 열어주면 시작' : s ? `실험 ${s.experiments}회 · 카드 ${s.cards}장` : '아직 안 해봤어요'} · ${esc(m.concept)}</div></a>`; }).join('')}
@@ -58,7 +61,7 @@ async function renderMission(id) {
       <section class="panel">
         <div class="eyebrow">② 실험 · 조건 하나만 바꾸기</div>
         <div class="sim"><canvas id="cv"></canvas>
-          <div class="hud"><b id="hudMain">${esc(V.label)} ${fmt(V.default, V.step < 0.1 ? 2 : 0)} ${V.unit}</b><span id="hudSub">${m.locked.join(' · ')}</span></div>
+          <div class="hud"><b id="hudMain">${esc(V.label)} ${fmt(V.default, V.step < 0.1 ? 2 : 0)} ${V.unit}</b><span id="hudSub">${m.locked.join(' · ')}</span><span class="clock" id="clock">0분</span></div><div class="drag-hint">🖱 드래그로 돌리고 · 휠로 확대</div>
           <div class="legend" id="legend"></div>
           <div class="badge hidden" id="badge"></div>
         </div>
@@ -71,7 +74,7 @@ async function renderMission(id) {
       </section>
       <section class="panel coachpanel">
         <div class="eyebrow">③ 코치 · 답은 알려주지 않아요</div>
-        <div class="coach" id="coach"><div class="bubble ai"><div class="who">코치</div>먼저 예측해 봐. 왜 그렇게 생각했는지도 한 줄!</div></div>
+        <div class="coach-head"><img class="penguin" src="assets/penguin-128.png" alt="" width="56" height="56"><div><b>펭귄 코치</b><div class="small muted">답은 안 알려줘요. 대신 같이 생각해요</div></div></div><div class="coach" id="coach"><div class="bubble ai"><div class="who">코치</div>먼저 예측해 봐. 왜 그렇게 생각했는지도 한 줄!</div></div>
         <div style="display:flex;gap:8px;margin-top:10px"><input id="say" class="reason" style="min-height:0;padding:8px 10px" placeholder="코치에게 답하기…"><button class="secondary" id="sayBtn">보내기</button></div>
         <div class="ladder" id="ladder"></div>
         <div class="solution hidden" id="solution"></div>
@@ -87,7 +90,7 @@ async function renderMission(id) {
     </div>
   </div>`;
   const next = MISSIONS.find((x) => x.order === m.order + 1); $('#nextTitle').textContent = next ? next.title : '(준비 중) 스윙바이 — 달을 스쳐 지나며 속도 얻기';
-  const view = new OrbitView($('#cv'));
+  const view = makeView($('#cv')); view.onTick = (t) => { const el = $('#clock'); if (el) el.textContent = m.id === 'm3' || m.id === 'm4' ? `${(t / 86400).toFixed(1)}일` : t < 7200 ? `${Math.round(t / 60)}분` : `${(t / 3600).toFixed(1)}시간`; };
   const legend = $('#legend'); legend.innerHTML = m.id === 'm3' ? `<span><i style="background:#ffb454"></i>못 미침</span><br><span><i style="background:#46d49a"></i>달 도착</span><br><span><i style="background:#5aa9ff"></i>지나침</span>` : `<span><i style="background:#ff6b6b"></i>떨어짐</span><br><span><i style="background:#ff6237"></i>계속 돎</span><br><span><i style="background:#5aa9ff"></i>벗어남</span>`;
   // 초기 화면: 기본값으로 그리기(판정 없이)
   view.show(m.run(V.default), false); view.simTime = 0; view.draw();
@@ -125,11 +128,12 @@ async function renderMission(id) {
     $('#obs').textContent = res.observation; $('#c2').textContent = res.observation; $('#c2').classList.remove('muted');
     const j = m.judge(state.choice, res); state.judged = j;
     const badge = $('#badge'); badge.className = 'badge ' + j.verdict; badge.textContent = `판정 · ${j.text}`; badge.classList.remove('hidden');
+    if (logIt) { const sim = $('.sim'); if (j.verdict === 'supported') { const r = badge.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top, 70); stars(sim); penguinReact('happy'); sound.win(); } else if (res.kind === 'crash' || res.kind === 'impact') { shake(sim); penguinReact('sad'); sound.lose(); } else { penguinReact('think'); sound.pop(); } }
     if (logIt) { store.log('experiment', { mission: m.id, value: state.value, kind: res.kind }); store.log('judge', { mission: m.id, verdict: j.verdict, choice: state.choice }); }
     return res;
   }
   $('#runBtn').addEventListener('click', async () => {
-    state.stage = 'experiment'; $('#d2').classList.add('on'); $('#runBtn').textContent = '다시 실험하기';
+    state.stage = 'experiment'; $('#d2').classList.add('on'); $('#runBtn').textContent = '다시 실험하기'; sound.launch();
     const res = runExperiment(true);
     await coach('experiment');
     $('#d3').classList.add('on'); state.stage = 'explain';
@@ -158,7 +162,7 @@ async function renderMission(id) {
     $('#tchoices').addEventListener('click', (e) => { const b = e.target.closest('.choice'); if (!b) return; document.querySelectorAll('#tchoices .choice').forEach((x) => x.classList.toggle('active', x === b));
       const ok = b.dataset.id === T.correct; const res = T.run(); view.show(res, true); $('#obs').textContent = res.observation;
       $('#tresult').innerHTML = `<b style="color:${ok ? '#46d49a' : '#ffb454'}">${ok ? '새 조건에서도 맞췄어요 — 개념이 옮겨 갔어요' : '새 조건에서는 달랐어요 — 왜 그런지 화면을 봐요'}</b><br>${esc(res.observation)}`;
-      store.log('transfer', { mission: m.id, correct: ok, choice: b.dataset.id }); if (ok) toast('법칙 카드 획득: ' + m.lawCard); }, { once: true });
+      store.log('transfer', { mission: m.id, correct: ok, choice: b.dataset.id }); if (ok) { toast('🏅 법칙 카드 획득: ' + m.lawCard); confetti(window.innerWidth / 2, window.innerHeight / 3, 120); penguinReact('happy'); sound.win(); } }, { once: true });
   }
   $('#askParent').addEventListener('click', async () => { if (!next) { toast('마지막 미션이에요'); return; } if (unlock.isUnlocked(next.id)) { toast('이미 열려 있어요! 홈에서 시작해요'); return; } store.log('request', { mission: m.id, next: next.id }); const r = await unlock.requestNext(m.id, next.id); $('#askParent').textContent = '요청 보냄 · 부모님 확인 기다리는 중'; $('#askParent').disabled = true; toast(r.where === 'server' ? '부모님 화면으로 요청을 보냈어요' : '부모님 화면(이 기기)에 요청을 남겼어요'); });
   if (next && unlock.isUnlocked(next.id)) { $('#askParent').textContent = '다음 미션 열려 있음 → 홈에서 시작'; }
@@ -264,7 +268,7 @@ function renderLab() {
       <div class="law" style="margin-top:12px"><div class="m">해 볼 것</div><div class="r"><div class="k">①</div><div>발사각을 바꿔서 원이 아닌 타원을 만들어 봐. 가장 낮은 곳이 어디까지 내려가?</div></div><div class="r"><div class="k">②</div><div>지구 질량을 2배로 하면 같은 속력으로 돌 수 있을까?</div></div><div class="r"><div class="k">③</div><div>중력 화살표와 속력 화살표가 언제 직각이고 언제 아닌지 봐.</div></div></div>
       <p class="small muted">공기 저항 없는 지구 2체 모형. 지구 질량을 바꾸면 그림의 지구 크기도 조금 바뀌어요(질량의 세제곱근).</p></section>
     <section class="panel"><div class="sim"><canvas id="cv"></canvas><div class="legend" id="legend"><span><i style="background:#46d49a"></i>속력</span><br><span><i style="background:#5aa9ff"></i>중력</span><br><span><i style="background:#ff6b6b"></i>떨어짐</span><br><span><i style="background:#ff6237"></i>돎</span><br><span><i style="background:#5aa9ff"></i>벗어남</span></div></div></section></div></div>`;
-  const view = new OrbitView($('#cv'));
+  const view = makeView($('#cv'));
   const read = () => ({ h: sliderToLog({ min: 150, max: 36000, step: 10 }, Number($('#lh').value)), v: Number($('#lv').value), a: Number($('#la').value), mu: Number($('#lm').value) });
   const run = () => { const { h, v, a, mu } = read(); $('#lho').textContent = `${Math.round(h).toLocaleString()} km`; $('#lvo').textContent = `${v.toFixed(2)} km/s`; $('#lao').textContent = `${a}° ${a === 0 ? '(옆으로)' : a > 0 ? '(바깥쪽)' : '(안쪽)'}`; $('#lmo').textContent = `${mu.toFixed(1)}배`;
     const st = P.freeStart(h, v, a); const cls = P.classify(st.x, st.y, st.vx, st.vy, mu);
