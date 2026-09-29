@@ -71,3 +71,12 @@ export const fateId = (m) => m < 0.08 ? 'none' : m < 8 ? 'wd' : m < 20 ? 'ns' : 
 const KNOTS = KID_EVENTS.map((e) => Math.max(e.t, 1e-8));
 export function sliderT(s) { s = Math.max(0, Math.min(1, s)); if (s <= 0) return 0; const n = KNOTS.length - 1; const k = Math.min(n - 1, Math.floor(s * n)); const u = s * n - k; const a = Math.log(KNOTS[k]), b = Math.log(KNOTS[k + 1]); return Math.exp(a + (b - a) * u); }
 export function sliderS(t) { if (t <= 1e-8) return 0; const n = KNOTS.length - 1; let k = 0; while (k < n - 1 && t >= KNOTS[k + 1]) k++; const a = Math.log(KNOTS[k]), b = Math.log(KNOTS[k + 1]); return Math.max(0, Math.min(1, (k + (Math.log(t) - a) / (b - a)) / n)); }
+
+// 로켓 탐구 — 모형의 조건·선택지·되묻기 문구
+export const ROCKET_ACTIVITY = {
+  id: 'rocket', title: '로켓 발사 탐구',
+  question: '2단 연료를 바꾸면 지구를 계속 돌 수 있을까요?',
+  choices: [{ id: 'orbit', label: '궤도에 들어갈 거예요' }, { id: 'fail', label: '궤도에 못 들어갈 거예요' }],
+  coach: '높이 올라가기만 하면 계속 돌 수 있을까요? 가장 낮은 높이(근지점)와 옆으로 움직이는 속도를 함께 살펴봐요. 다음에는 연료량을 어떻게 바꿔 볼까요?',
+  note: '나로호 모양을 참고한 교육용 근사 모형이에요. 실제 나로호의 제원·발사 기록과 달라요. 목표 고도는 약 200 km이고, 가장 낮은 높이가 100 km 이상인 지구 궤도를 성공으로 판정해요. 연료를 바꾸면 출발 질량도 함께 달라져요.',
+};

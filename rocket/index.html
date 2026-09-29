@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<script>if (window.parent === window) location.replace('../#rocket');</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AstroBox 로켓 발사 탐구</title>
+<style>
+  :root { --panel: rgba(8, 12, 20, 0.72); --line: rgba(255,255,255,0.12); --fg: #e8eef7; --dim: #8fa0b8; --acc: #ffb347; --ok: #6ee7a8; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--fg); font-family: -apple-system, "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; }
+  canvas { display: block; }
+  #ui { position: fixed; inset: 0; pointer-events: none; }
+  .panel { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  #hud { left: 16px; top: 16px; padding: 12px 14px; min-width: 236px; font-variant-numeric: tabular-nums; }
+  #hud .row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; gap: 16px; }
+  #hud .row.sub { padding-top: 6px; margin-top: 4px; border-top: 1px solid var(--line); }
+  #hud .k { color: var(--dim); font-size: 12px; letter-spacing: 0.02em; }
+  #hud .v { font-size: 17px; font-weight: 600; }
+  #hud .row.small .v { font-size: 13px; font-weight: 500; color: #c8d3e3; }
+  #tplus { font-size: 26px; font-weight: 700; letter-spacing: 0.02em; }
+  #fuelbar { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.12); margin-top: 4px; overflow: hidden; }
+  #fuelbar > i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #ff7a45, #ffb347); transition: width 0.15s linear; }
+  #phase { left: 50%; top: 16px; transform: translateX(-50%); padding: 8px 18px; font-size: 15px; font-weight: 600; letter-spacing: 0.04em; white-space: nowrap; }
+  #phase b { color: var(--acc); }
+  #toasts { position: absolute; right: 16px; top: 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .toast { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--acc); border-radius: 10px; padding: 10px 14px; font-size: 14px; min-width: 200px; animation: toastin 0.25s ease-out; backdrop-filter: blur(10px); }
+  .toast .t { color: var(--dim); font-size: 11px; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+  .toast.out { animation: toastout 0.4s ease-in forwards; }
+  @keyframes toastin { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+  @keyframes toastout { to { opacity: 0; transform: translateX(16px); } }
+  #controls { left: 50%; bottom: 18px; transform: translateX(-50%); padding: 10px 12px; display: flex; gap: 14px; align-items: center; pointer-events: auto; flex-wrap: wrap; justify-content: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group .lbl { color: var(--dim); font-size: 11px; margin-right: 4px; }
+  button { appearance: none; border: 1px solid var(--line); background: rgba(255,255,255,0.06); color: var(--fg); font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 8px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+  button:hover { background: rgba(255,255,255,0.12); }
+  button.on { background: rgba(255,179,71,0.18); border-color: var(--acc); color: #ffd79a; }
+  button.primary { background: #ff7a45; border-color: #ff7a45; color: #fff; font-weight: 700; padding: 8px 18px; }
+  button.primary:hover { background: #ff8f60; }
+  button.primary:disabled { opacity: 0.45; cursor: default; }
+  #hint { position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%); color: var(--dim); font-size: 12px; white-space: nowrap; }
+  #countdown { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); font-size: 96px; font-weight: 800; color: #fff; text-shadow: 0 0 30px rgba(255,150,60,0.8); opacity: 0; transition: opacity 0.2s; font-variant-numeric: tabular-nums; }
+  #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; color: var(--dim); font-size: 14px; z-index: 10; transition: opacity 0.4s; }
+  @media (max-width: 640px) { #hud { min-width: 190px; padding: 8px 10px; } #hud .v { font-size: 14px; } #tplus { font-size: 20px; } #phase { font-size: 12px; padding: 6px 12px; } #hint { display: none; } }
+  #btnDetails { display: none; pointer-events: auto; }
+  @media (max-width: 640px) {
+    #hud { left: 8px; top: 44px; min-width: 160px; max-width: 210px; }
+    #hud .row.small, #hud .row:nth-of-type(n+5), #fuelbar { display: none; }
+    #hud.expanded .row, #hud.expanded #fuelbar { display: flex; }
+    #btnDetails { display: block; font-size: 11px; padding: 4px 6px; margin-bottom: 4px; }
+    #phase { top: 8px; }
+    #controls { bottom: 8px; width: calc(100% - 16px); gap: 6px; padding: 8px; }
+    #controls button { font-size: 11px; padding: 6px 8px; }
+    #toasts { top: auto; bottom: 160px; right: 8px; max-width: calc(100% - 16px); }
+    .toast { font-size: 12px; min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="ui">
+  <div class="panel" id="hud">
+    <button id="btnDetails" aria-expanded="false">비행 정보 펼치기</button><div class="row"><span class="k">경과 시간</span><span class="v" id="tplus">T−00:00</span></div>
+    <div class="row"><span class="k">현재 단계</span><span class="v" id="phaseTxt">발사 대기</span></div>
+    <div class="row sub"><span class="k">고도</span><span class="v" id="alt">0.00 km</span></div>
+    <div class="row"><span class="k">속도</span><span class="v" id="spd">0 km/h</span></div>
+    <div class="row"><span class="k">마하</span><span class="v" id="mach">0.00</span></div>
+    <div class="row"><span class="k" id="fuelK">남은 연료 (1단)</span><span class="v" id="fuel">100.0%</span></div>
+    <div id="fuelbar"><i id="fuelI"></i></div>
+    <div class="row sub small"><span class="k">피치각 / 비행경로각</span><span class="v" id="gamma">90° / 90°</span></div>
+    <div class="row small"><span class="k">다운레인지</span><span class="v" id="range">0 km</span></div>
+    <div class="row small"><span class="k">근지점 / 원지점</span><span class="v" id="apsis">— / —</span></div>
+    <div class="row small"><span class="k">가속도</span><span class="v" id="gee">1.0 G</span></div>
+    <div class="row small"><span class="k">총 질량 / 추력</span><span class="v" id="mass">— / —</span></div>
+    <div class="row small"><span class="k">동압 (Q)</span><span class="v" id="q">0 kPa</span></div>
+  </div>
+  <div class="panel" id="phase">단계 <b id="phaseBig">발사 대기</b></div>
+  <div id="toasts"></div>
+  <div id="countdown"></div>
+  <div id="hint">드래그: 회전 · 휠: 줌 (자유 카메라) · 1~3: 배속 · C: 카메라 · 스페이스: 발사 · R: 리셋</div>
+  <div class="panel" id="controls">
+    <div class="group">
+      <button class="primary" id="btnLaunch" disabled>먼저 예측해요</button>
+      <button id="btnReset">리셋</button>
+    </div>
+    <div class="group"><span class="lbl">배속</span>
+      <button data-speed="1" class="on">1×</button><button data-speed="10">10×</button><button data-speed="100">100×</button>
+    </div>
+    <div class="group"><span class="lbl">카메라</span>
+      <button data-cam="cine" class="on">로켓 추적 (시네마틱)</button><button data-cam="free">자유 회전</button>
+    </div>
+    <div class="group"><button id="btnSound">🔊 사운드</button></div>
+  </div>
+  <div id="loading">지구·로켓 텍스처 생성 중…</div>
+</div>
+
+<script>window.addEventListener('error', e => { const l = document.getElementById('loading'); if (l) l.textContent = '오류: ' + e.message; });</script>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js" } }
+</script>
+<script type="module">
+const THREE = await import('three').catch(error => { document.getElementById('loading').textContent = '3D 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.'; throw error; });
+import { C, ROCKET, PHASE_NAMES, airDensity, Sim } from '../src/rocket-physics.js';
+
+/* ============================================================
+   0. 실제 지구 육지 마스크 (1024×512, RLE·base64, 코드 내장)
+   ============================================================ */
+const LAND_B64 = "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BAEBAjISCwFTA16JAQc/iwEIBwccAwQCDwQFxwI6EsEBiAEIPYkBAgIIAwECCRkGAQEEAgjXAjYNXQEBAV0EA4oBCTkBBIYBCwoHGg4C3AIBAgMELAxeAWADBAMChAEJNgIFAQOEAQoJCRQDAREB3AIDBwUCJQtZAmQDBQMBhAEGAQNBgwECAQgEAQEMDwQB/QIBBCULWAFoAgeFAQICBkGEAQoEDQEDCQEBggMDAyUIJwKcAQEIhgEIQAEBgwEJBhEIAQKCAwEEJgZNAXkBCQEBggEJQYEBCwUSB4sDJgZCAQMCiQGGAQZAggECAQMJEwiGAwEEJgXTAYYBAwEBPgIBhAEBDwIBCQmHAwMEJQPVAcQBBQOTARAEiAMFAyYB1AECAsEBBgOSAQkBAQIBBIsDBAX7AQUBvAEGBJIBBA6MAwQFIgHYAa4BDgELA6UBjAMEBf4BBwGiAQgEDgMBAqABjwMEBv8BBQOgAQoECwgCA5QBAgOPAwUGgAIGApsBBQcRDpMBlAMFA4YCBgGXAQQKEA6NAQQCAQGTAwUChwIBAgEDlwEBDBEPigGcAwYChwKnAQQBDhABAYoBmgMHAYkCBAGVAQIODwICBwECAwKNAZUDCAKJApgBAQ8JARIBAgSPAZIDCQOJApYBAREBAQkBDQIDAQECkAFwBZsCCgMZAe8BqAEKAqcBXQMLBZ8CCQICAYgCqQECAwQDqAFaBAgKnAILAYoCrAEGAgEBpwFaCgMJnAIiAfUBpwEBC6oBJwMtCQcHnAKYAqUBBAmsASYELQumAgwBAQIPAvkBowEECK4BJwQBAioLBAeaAg8DDAL7AaABBQayAScHKA4BC5cCEASIAp0BAQEGBLQBHAQIBicekwIRB4UCmwEKA7UBGQgIByUfkQIRCwQB/AGaAbEBCgECBRADBQsJCSEhjgISCwIB/gGZAa8BIxUJCh4lggICBhINgQKZAa8BIxYJCxwn/wEFARMLhQKYAbEBIg8DBggMGif+ARoBBgOHApgBsAEiEAIHCQsaEwET+wEdAgYBhwKaAa4BIRECCAsKGAwJAQEQ+gEdAZAClAG0AR8fCQkbBw4BAQz8ASABjQKPAQIDtAEcFgINCQcPAQYFGQIDAv4BHgGOApEBuAEbFQUOCQQIAQQGAQEBAQEDhgIDFB8EjAKQAbkBGhcDDwYDAQMJDIsCBBMgBY0CjQG6ARkIAQ8EEQIEAQUIBgECigIGBwEKIQeMAo0BuQEZCQIOAxIDCAkJAgGGAgYEBQEBByMGjAKGAQEDAQG5ARoZAhQDCQcLgwIBAwcBCgUkBowChgEBA7sBGy4BDAUCAQqCAgkCCggiBY4ChQEBBIQBATYZKwECAg0JBoQCFQkgBZAChQEBAr0BFycBBAIBAQwBAgMCAgEBBYUCEwsbAQMEkwKDAZABAS8XJQgRBgIBCYUCBAEPCBwGkwKDAcABFSoFEwMBAQIBB4UCBAUMCBcBAweTAoMBwQECAw4fAwsEEQQHAQWOAg0HFQECCZUCggHGAQYBAgEBDwYCDQEBCwEWAQMBCAECBgMIAQIC8gEOCRULlQKDAcYBAxIbKgEKBAUFBfEBEQgUDJYCgQHZAR4KASYBFvABEgkSDZcCgQHHAQIMIkfvARMIEAECDZgCfskBAwUBBCMkBQIBEwMF7gETCQkUAQGaAn7HATEnAhQFBe0BFQULEgEBnQJ8yQEwAQFG7gEUAQECCggDAwIBpgJ2ygEwSPEBHgQBAQICAQalAgEEc8oBMUjyAR0BAgIBBQEDrgJuywE0AQFF8gEbBQIFAwKvAm3JAThE9AEZBgICtwJrygE8AgEXAyT0ARkBAQQCAbkCacoBQxEIIfUBGwS8AmfMAUYNCx/2ARoDvgJmywFHDQ4c9gEBARYFvgIFBFzLAUkMEwoBAQMH9wEBARkCvwIEBVrMAU0IFgYHAQEB/AHbAgQEWswBUAWgAt0CBAVGAQIBD80BUANTAcwBHAHCAgMFQAECCgQBCMsBpwEEywEBAdsCBAUyAQIDAgEHCwEFBssBeAEtBc0B3QIFAjILBREGygGmAQfLAdQCAQoDAzEkBb8BAQh7ASsIyQHhAgMELSYGsgEBCgEHfQEEAScHyQHhAgQEKycFtgEBDn8BAwEnCMgB4QIEBSgoB7gBAQeEAQECAicHxwHhAgYFJioHvgGFAQYmCsIB4wIHBSQrB74BhwEFJgrBAeUCBgUkKwa+AYcBBicKCAK0AekCBAYiKwYEAbgBiAEGJwsBAQEGswHrAgMGIiwFuwGKAQcnEQECsQHtAgIGIy0DuwGLAQYnAgIMAQOxAe0CAwYhLgK7AY0BBiYBAgwCCKsBAQHsAgQHHi8BvAGNAQcpCgMOAQEBDZQBBwHnAgQIHTgBswGOAQYmAQEDAQYFHpIBBwMJAd4CAgkcOAGyAY8BBigIBx6QAQgD6gIDCBs4AbEBkQEHJwIDAQkejwEIA+sCAwga6QGSAQg4HY0BBwTtAgIIGegBkwEJORyJAQoE7QIBChgrBrcBkwEJOhyIAQoD+gIXJwQBCA8BpAGVAQg6HzsBPwEDDwL7AhcmAwQJAQEGAagBlwEHOxo+Az4UAeIBAZkBFiUCCgeuAZkBBjsbCAEsAQYEPBYB5gEBlQEWKgEJBw8BmwGZAQY6HQgBKgMBCDABCYACAZUBFhYIGAapAZoBBTkfBgIoDysHA4YCA5ABFxQKGAgFAaABmwEGNyEDBCgQKQEBBgEBAYcCAZIBFxMJGgEBB6YBmQEHNAECJygQKAkCmgMZEggdCaUBmAEIMyonEyaVAgONARoRCBwBDAICAQEBmwGYAQkxKyYVIwsEiAIEjQEZEAkqCJkBmAEKMCsjGCMJBYoCAZABGQ4KKgmYAZgBCy8rIhkjCAadAxgMCQEBKQEBC5UBmQEKLS0iGQEBIQgFnwMZBgMBCR0CCA0BAwQDjgGaAQorLiEcIQkDHgICAf8CKh0FDQILBYwBmwEJKy8eHyEpBYMDJh8BIgGKAZwBCScyHSAiJwWFAybMAZ0BCSUzHCEjJwWGAyNLAWcBGZ0BCiQzGiMkJgWJAyDMAZ4BCAEBHjoZIgcCHSQGjAMczQGgAQkbPBgjBgMeIwaOAwcEDk0BgAGfAQoaPRYlAgEBBh4hBZMDAQgbwAGfAQkcPRIyHyAFnQMcPgFqAROiAQcZQBIyIB8EnwMbpwEBFKMBAQEGFUQRMiAfB54DGT8BfKYBBRJHETIgIAEBAqEDGL0BpgEFEEkQMyAgAwICoQMUPwF9pwEEDUwQMiEhAgEBAQEBAQEBnwMRvwGnAQMKTxA0Hx8BBQEBAqQDDkQBeakBAgZUDyQBDgUDGCACBgGnAwu+AasBAQRVDzUDAxghAgYBpwMLvQGrAR0DOg80BAYVIQEDAQQDpQMJIQMCARcBgAGqAVsNJQEQAwgTHgEIAQEBAQOlAwggAwMBCQGRAaYBFgJFDCQBEQMJEh4BBQEHAqYDBx4DBQSYAacBEgRGDCQBEQIKESUDBQKnAwYbBwIIlwGnAQoLRws2AgoBAQ4mAwIBAQKoAwYYCgEJDwICAoQBpgEFD0cLNAQMDCABBwIBAQEBAgGoAwcWCwEPBQUDAYUBugFHCzUCDwciAgkCAQGrAwIBBRUKAhmKAbkBSAg2AQEBEQQjAQoDAQEDAqgDBhQKAxyHAbgBSAgDATMCEAUiAQoCAgKvAwUGBQYNAh2HAbYBSQgDAjICEAQiAQwCBgGsAwQBAQIEAQQELIcBtgFKBQQDMgQOAiICFAOrAwEBCQQDAS4BAYUBtQFLBAUEMAUOATgErwMFBgQBMYQBtAFMAwUFMQRBAgEGsQMEBQQBMoMBswFVBTIDPwuwAwECAgY3ggEBAbEBVQYxBD0BAQICB7oDOIQBrwFWBjIDLwENAQUEAQK7AzeGAawBVwYzAwEBQAS/AziFAasBWAQ1BCoDDQEFBL8DOYUBIgl+WQM2BicFBwEDAQYFvgNCfh8LfZIBByYHEwG/A0V8GhB7hQECDQcjCtIDR3sKBwUTe4UBBwcJIwrRA0h8BSN5hwEHBwggCtQDSX0BJgQEb4kBBwYIHg4WAbsDSqwBAQFriwEGBwceCxkBuwNLrAFrjgEFBgcNAQ8M1QNLqQEBA2mPAQcFBhwN1ANMrQFpkAEHBAYMAQ0O1ANNrQFnjQECBAcEBhYS0QNQrAFmlAEIBAYUFB0B0QEB4AFRqwFkmAEKAgQPAQQTHAGzA1OpAWSaAQoDAw0FARQTAQcBswNTqQFjlwEBAwsSHAYBCQIGAgEBrwNVqQFhmQEBBAsEAQwcBQkBAgkBrwNUAQGpAWCfAQwCAQ0ZBg0JA64DUwEDnwEBCV+dAQECDAEBDRgHARUBkAMBH1YCAaYBX6IBCgMBDBgdAQQBAQOmA1QBBqQBX6QBCRAYHAEIAQQDgQMCAwEZWwEEngFfpQEKEBcGAgUEFAEBCQQBlwNbAQedAV2hAQIDDA4BARQGBAIGFQoGAZUDWgELmgFcowEBBAsEAQcBAxMHCQECCwILBwkCkQNnmQFcqQELAQMLEggGCQINAgQHCAWPA2iZAVmnAQEDCwMBCxMHBx8BAwEGCRcB9gJmAgSVAVepAQEDDAEDAgIFEgcFAQMfBQQOGgHvAgEBco4BVasBAQMNAQECAgcBAQQBCAgEAgQQBwUIAhIaAQEB6wJ1jQFUrwEMEQEBAQIIBwQCBAoDBAEBAQEDBQcBFhkB6QJ4jQFSsgEKGQMBAQkDAQQLAgoBBgIBHBgB6AJ5jQFRsgEKGQENAgQDAQEbAQQeFQHmAnyMAVCzAQknAgQEIh0SAgEB5gJ9jAFNtwEHHAEKAgQBAQImGhEC6AKBAYgBTbgBBicCBgIpGA8C6gKCAYcBTLkBBRgBDgMGARsCAwEJFwsBAgTpAoIBhwFLuwEBAQITAR8BGAEEAQoYBQkJAeECggGHAUy+AQUkAScBCxoFAw0B4QKCAYcBS70BCQYBQQMKGxQC4gKAAYcBTL4BCgIFSxgYAQIB3wKAAYgBS78BEQECBgEsARMYHAHfAn+IAUvCAQ8pAQoBExofAtoCf4gBS8kBDCIBCAEEARIRBAcaAQUB2gJ+iQFKzAEJAQMCAQICBgEHAQIDCAEbAwMKCAUaAgQB2gJ8igFK1AEBAgECBQEDAgkGBScICAYIARABAQEHAdYCfIkBS9wBAxQEKQgJBSMB1wJ6igFM8AEEMAEMBgMBGgEDAdYCeYwBS+IBBAkDQAgBARkD2QJ4jAFL5AEDBwNCBgMB9AJ3jgFMtwICHwHXAnSQAUzrAQE1ARYBBgEZAtUCc5EBTKECAo4DcpEBTP8BBAIBGwKOA3GSAUwIAfYBAwQEBQEBAQ8CMgHcAnCSAUwLAfoBBwEBAQEPBI8DbpIBTRgC5gESDgWOA22SAU4NAQoD5QERDwWPA2qTAU8YA+QBERAFfQGRAmqTAU8VAQEE4wEREQV/AY8CapIBUBUH2gEBBxIBAQ0GjwNqkgFQFgbYAQQFEgICDQZDAcsCaZIBURQH1QEIBRASCY0DaJIBURMI1QEIAQICEBIKjQNnkQFSEQvTASAQCj0C0AJlkQFREQkBAdMBIg4LPQLRAmSRAVAODdUBJAwMQAHQAmKRAVAMENUBJQoMPgEBAR8BUwHfAV+RAU4OEM8BAQIpCQxAAR0EswJekAFOCgEED88BAwEsBQ6WA1uRAUsREM4BMgQPWgFcAd0BXJABSRMQzwFEWQO7AliTAUcUEM8BQ1kEvAJXkwFGFQ/OAUaYA1eUAUQXDs4BRmQBswJXlQFBGQ3OAUiXA1eVAUEZDc4BSz0B1gJWlwE+Gw3LAU+TA1aXAT4bDRgBrgFVkQNVmQE9Gg3FAVgsAuMCVJoBPhkNEwGtAV0sAgUB3QJSnAE9GA4TAqoBYCwC4gJSnQE8GA2/AWEtA98CU50BPBcOuwEBAWMwAd4CUaABPBYNvAFnLwHdAlGgATwWDbsBaosDSagBPBcMvAFpigNKqAE8Fwy8AWmLA0eqATwXC7wBa4kDRK4BPBcLvAFthwNDsAE6GAu8AW2HA0KxATkaCb0Bb4YDQLIBNh4HvwFuAQGDAz+0ATQiAsIBcIMDP7QBM+QBAQNuhAM/tQEy5QEBAm6EAz+1ATPmAW+EAz+1ATPmAW+DA0C1ATLnAXCxAQHQAUC2ATHoAXCBA0C3ATDoAW+BA0C5AS7pAXCAA0C6AS3qAW+AAz69ASrsAW+AAz69ASnuAW2BAz2/ASfvAW2BAzzAASfvAW2AAzsBAcABJvABbIEDOsQBJfEBa4EDOQECwgEk8gFrgQM4AgHEASL0AWqCAzbJAR/2ASUJO4IDOMgBHvcBIhA3gwM2yQEd+AEcGTOEAzbIAR35ARoaM4QDNskBHPoBGB4IASeFAzXLARn7ARkfBgImhgM0zAEV/gEOAQEEAgEBIgMDJ4UDJwEMzQEBAQiJAg0tAwMmhgMnBAjRAQOQAggvAQUBAiOGAynvAwU2AgIjPwHFAiutBCJBA8ECLKgEAgUgQQPBAiywBB5DAsECLq4EHkUBvwIvrwQdRQECAbwCLrAEHEYEuwIvsAQdRgS6Ai6yBBdLBQMDswIttgQKAQdNCrQCK7wEBAQETwq0AibLBAFPCrYCH58FCrgCH6AFCLgCIMoEAVgFtwIiogUFtwIhowUEuAIZAgXNBAQFAkQCBgO5AhnVBApDBwEDugIZ1QQKQwa+AgICFtYECUEIvgICAhcCAdIECEIHvwICAhYCAtMEB0EHwAICAhjVBAUBAUAHxAIX2AQDQQgeAaYCFpsFC8ICAQEWmQUJxAICAhaXBQrFAgQBFJgFCsUCAgEUmAULxgIBAROZBQzEAgQBEZkFDcQCFpsFAQEHxQIBARWfBQPLAhWpAgHxAgHOAhnoBxjlBwEEFeUHGuYHAgIU6AcXhAMC4wQXhAMD4gQDARLrBxPtBwIBD+8HEJ0FAdUCDfMHDhgDAQTOBwEBAQEDAQoYAgED0gcEAQwWAQIC1QcBAQMCBQEB9AcFBQXxBwcCBfEHBAEDAQECBfAHAQEEAQIBB/MHAQEBAQMBB1QCnAcDAQ9SAZwHAgEK9wcBAQKCCAG9cAHaHwL7BwH6BwECAYoIAfsHAwIC9QcDAQLxBwEBAQIGAgPsBwIDAQEEAQEFAu0HAwEE9wcH0wMBpAQHzQMDqAQGAwLDAgeGAQMYBYIEBQICBAG9Ag9/Dw0LLQwCA7wDAQMBAQUDAcECFF8JAScIDhsECRywAwICAQEEwwICAxFXUBQQBiQCAqMDAgEJvAICBhtGWwFSoQMBAge8AgcCLy+xAQIEoQMFtgJKHb4BoAMGsAJQGMMBCwEHAooDBwIBkwIEEVMZ0wECBPsCBgkKkQIEEFMZ4AH0AgECBgISAQGOAgYNUxTsAeUCAgkHAhHeAQMuDAEDAlYNAgPxAeECAgoHAhLeAQEraQv7Ae0CBwIQxwEHBg8CAwYDAwIOcgn9AQIC6QIGAhCaAQIBAxotAgIBCgd4B5EC0wIOAhOQAQMEBRTAAQiSAgEBywIBARICEI4BAgEGAxQCxAEGmQIBAf0BAgIDAQEBAzoFAgEGBwQNkgHhAQWdAgEB/AEMRgICBAYSjAGDBP4BBQsCCAMiBA0IBxKKAYYE9wEDIAIBAgEDGQQHBBAXhAGLBLQBA0EtAQQNAQEEAgEFAwIBBxwBA32IBAEBugEGPwMGLwcLBQEDJX6IBMEBBQUGAQIGAgQCJHKFAYAEsgECCQIOBQcCAQEGAwYEGXR8AwKCBKYBAQEEEwMKHAQEHmgBA32CBAMBpgFJI2d/hASiAdcBAQN/gwSYAeEBdJQEiwEBAgEBxAEBHHSaBIkBBAPCAQcRdaIEiAECBQEDwgGFAaUEcgECBg8CAgEExQF8rwQJAWMUCNUBb7QEBwlc2gEHEUgGHbkEbgEF2AFTEBe5BAMBAgRrygEFDRkEMBIVvwQCA1QFFM0BIQczExe0BF8LF8kBAgoPBzYUHqYEaA0X0wENAzgWI54EkQHNAUgWKp0EjAHSAT8bJZ0EkgHTAT0NKa4EfAMN3AEDBlS6BHv/AUbBBIIB+wFAxwR8+gEoEQjNBHv/ARYaBc0EAQhygwIS/QRhkgIMhgVargdMuQcDAkbGBwIaIO4HLN4HJalv";
+const LAUNCH_SITE = { lat: 34.43, lon: 127.535 }; // 나로우주센터 (전남 고흥)
+
+/* ============================================================
+   1. 물리 모델 (SI 단위, 2D 궤도면 → 3D 렌더)
+   ============================================================ */
+/* ============================================================
+   2. 절차적 텍스처 (외부 파일 없음)
+   ============================================================ */
+function hashNoise(seed) {
+  const perm = new Uint8Array(512); const p = []; for (let i = 0; i < 256; i++) p[i] = i;
+  let s = seed; for (let i = 255; i > 0; i--) { s = (s * 16807) % 2147483647; const j = s % (i + 1); [p[i], p[j]] = [p[j], p[i]]; }
+  for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+  const fade = t => t * t * t * (t * (t * 6 - 15) + 10);
+  const grad = (h, x, y) => { switch (h & 3) { case 0: return x + y; case 1: return -x + y; case 2: return x - y; default: return -x - y; } };
+  return (x, y) => {
+    const X = Math.floor(x) & 255, Y = Math.floor(y) & 255; x -= Math.floor(x); y -= Math.floor(y);
+    const u = fade(x), v = fade(y), A = perm[X] + Y, B = perm[X + 1] + Y;
+    const l1 = grad(perm[A], x, y) + u * (grad(perm[B], x - 1, y) - grad(perm[A], x, y));
+    const l2 = grad(perm[A + 1], x, y - 1) + u * (grad(perm[B + 1], x - 1, y - 1) - grad(perm[A + 1], x, y - 1));
+    return l1 + v * (l2 - l1);
+  };
+}
+function fbm(noise, x, y, oct = 5, lac = 2.0, gain = 0.5) { let a = 1, f = 1, s = 0, n = 0; for (let i = 0; i < oct; i++) { s += a * noise(x * f, y * f); n += a; a *= gain; f *= lac; } return s / n; }
+
+function decodeLandMask() {
+  const bin = atob(LAND_B64), W = 1024, H = 512, m = new Uint8Array(W * H);
+  let i = 0, pos = 0, v = 0;
+  while (i < bin.length) { let r = 0, sh = 0, b; do { b = bin.charCodeAt(i++); r |= (b & 127) << sh; sh += 7; } while (b & 128); if (v) m.fill(1, pos, pos + r); pos += r; v ^= 1; }
+  // 해안 거리(연안 색·해안선 부드럽게): 박스 블러 3회
+  let f = new Float32Array(m), g = new Float32Array(W * H);
+  for (let pass = 0; pass < 3; pass++) {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let s = 0; for (let dx = -2; dx <= 2; dx++) s += f[y * W + ((x + dx + W) % W)]; g[y * W + x] = s / 5; }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let s = 0, n = 0; for (let dy = -2; dy <= 2; dy++) { const yy = y + dy; if (yy >= 0 && yy < H) { s += g[yy * W + x]; n++; } } f[y * W + x] = s / n; }
+  }
+  return { mask: m, soft: f, W, H };
+}
+// 발사장을 구 기하의 극(+y)에 두기 위한 회전: 기하 좌표 → 실제 위경도
+function makeSiteRotation() {
+  const lat0 = LAUNCH_SITE.lat * Math.PI / 180, lon0 = LAUNCH_SITE.lon * Math.PI / 180;
+  const p0 = [Math.cos(lat0) * Math.cos(lon0), Math.cos(lat0) * Math.sin(lon0), Math.sin(lat0)]; // 실제 발사장 단위벡터 (z=북극)
+  const z = [0, 0, 1]; let ax = [z[1] * p0[2] - z[2] * p0[1], z[2] * p0[0] - z[0] * p0[2], z[0] * p0[1] - z[1] * p0[0]];
+  const al = Math.hypot(...ax); ax = ax.map(v => v / al); const ang = Math.acos(Math.max(-1, Math.min(1, p0[2])));
+  const c = Math.cos(ang), s = Math.sin(ang), t = 1 - c, [x, y, w] = ax;
+  const M = [[t * x * x + c, t * x * y - s * w, t * x * w + s * y], [t * x * y + s * w, t * y * y + c, t * y * w - s * x], [t * x * w - s * y, t * y * w + s * x, t * w * w + c]];
+  return v => [M[0][0] * v[0] + M[0][1] * v[1] + M[0][2] * v[2], M[1][0] * v[0] + M[1][1] * v[1] + M[1][2] * v[2], M[2][0] * v[0] + M[2][1] * v[1] + M[2][2] * v[2]];
+}
+const DESERTS = [ // [lon1, lon2, lat1, lat2] 대략적 사막대
+  [-17, 60, 14, 32], [40, 75, 24, 45], [90, 118, 37, 47], [112, 146, -32, -19], [-118, -102, 22, 38], [-72, -67, -28, -18], [14, 27, -30, -20], [60, 75, 24, 32],
+];
+function makeEarthTextures() {
+  const W = 2048, Hh = 1024, land = decodeLandMask(), rot = makeSiteRotation();
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh;
+  const sc = document.createElement('canvas'); sc.width = W; sc.height = Hh;
+  const lc = document.createElement('canvas'); lc.width = W; lc.height = Hh;
+  const ctx = cv.getContext('2d'), sctx = sc.getContext('2d'), lctx = lc.getContext('2d');
+  const img = ctx.createImageData(W, Hh), simg = sctx.createImageData(W, Hh), limg = lctx.createImageData(W, Hh);
+  const n1 = hashNoise(1234), n2 = hashNoise(777), n3 = hashNoise(4242);
+  const sample = (arr, u, v) => { // 양선형
+    const fx = u * land.W - 0.5, fy = v * land.H - 0.5; const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+    const X0 = (x0 + land.W) % land.W, X1 = (x0 + 1 + land.W) % land.W, Y0 = Math.max(0, Math.min(land.H - 1, y0)), Y1 = Math.max(0, Math.min(land.H - 1, y0 + 1));
+    return (arr[Y0 * land.W + X0] * (1 - tx) + arr[Y0 * land.W + X1] * tx) * (1 - ty) + (arr[Y1 * land.W + X0] * (1 - tx) + arr[Y1 * land.W + X1] * tx) * ty;
+  };
+  for (let j = 0; j < Hh; j++) {
+    const glat = (0.5 - j / Hh) * Math.PI;
+    for (let i = 0; i < W; i++) {
+      const glon = (i / W) * Math.PI * 2;
+      const gv = [Math.cos(glat) * Math.cos(glon), Math.cos(glat) * Math.sin(glon), Math.sin(glat)];
+      const rv = rot(gv); // 실제 지구 좌표
+      const lat = Math.asin(Math.max(-1, Math.min(1, rv[2]))), lon = Math.atan2(rv[1], rv[0]);
+      const latD = lat * 180 / Math.PI, lonD = lon * 180 / Math.PI;
+      const u = (lonD + 180) / 360, v = (90 - latD) / 180;
+      const L = sample(land.soft, u, v), hard = sample(land.mask, u, v);
+      const det = fbm(n2, rv[0] * 14 + 3, rv[1] * 14 + rv[2] * 14, 4), det2 = fbm(n3, rv[0] * 40, rv[1] * 40 + rv[2] * 40, 3);
+      const nearPad = glat > 1.5655; // 극 왜곡 은폐 (발사장 반경 ~0.3°)
+      let r, g, b, spec = 0, light = 0;
+      const isLand = L > 0.5 || nearPad; // 블러 마스크로 해안선 계단 제거
+      if (isLand) {
+        let desert = 0; for (const d of DESERTS) if (lonD > d[0] && lonD < d[1] && latD > d[2] && latD < d[3]) desert = Math.max(desert, 0.75 + det * 0.5);
+        desert = Math.max(0, Math.min(1, desert + (Math.abs(latD) > 15 && Math.abs(latD) < 35 ? (det - 0.18) * 1.5 : 0)));
+        const aLat = Math.abs(latD);
+        let ice = latD < -62 ? 1 : aLat > 74 ? 1 : aLat > 64 ? (aLat - 64) / 10 : 0;
+        if (latD > 59 && lonD > -73 && lonD < -12 && latD < 84) ice = Math.max(ice, 0.85); // 그린란드
+        const mount = Math.max(0, det2 * 1.6 - 0.25);
+        // 기본 식생색 (위도별)
+        let vr, vg, vb;
+        if (aLat < 12) { vr = 34; vg = 84; vb = 30; } else if (aLat < 40) { vr = 70; vg = 112; vb = 42; } else if (aLat < 58) { vr = 62; vg = 96; vb = 40; } else { vr = 96; vg = 104; vb = 62; }
+        vr += det * 30; vg += det * 30; vb += det * 15;
+        // 사막 · 산지 · 빙하 블렌드
+        r = vr * (1 - desert) + 196 * desert; g = vg * (1 - desert) + 168 * desert; b = vb * (1 - desert) + 112 * desert;
+        r = r * (1 - mount) + 128 * mount; g = g * (1 - mount) + 112 * mount; b = b * (1 - mount) + 96 * mount;
+        r = r * (1 - ice) + 238 * ice; g = g * (1 - ice) + 242 * ice; b = b * (1 - ice) + 248 * ice;
+        if (nearPad) { r = 74 + det * 30; g = 112 + det * 30; b = 52; }
+        // 도시 불빛: 저위도·비사막·비빙하 육지의 군집
+        const cl = fbm(n3, rv[0] * 90 + 9, rv[1] * 90 + rv[2] * 90, 3), cl2 = fbm(n1, rv[0] * 260, rv[1] * 260 + rv[2] * 260, 2);
+        if (aLat < 62 && desert < 0.5 && ice < 0.3 && cl > 0.26 && cl2 > 0.05) light = Math.min(1, (cl - 0.26) * 6) * Math.min(1, cl2 * 6) * (0.4 + L * 0.6);
+      } else {
+        const shelf = Math.min(1, L * 2.2); // 연안 얕은 바다
+        const deep = 1 - shelf;
+        r = 12 + 60 * shelf + det * 6; g = 38 + 110 * shelf + det * 8; b = 96 + 80 * shelf + det * 6;
+        if (Math.abs(latD) > 78 || latD < -68) { r = 230; g = 236; b = 244; } // 해빙
+        else spec = 230 * (0.6 + 0.4 * deep);
+      }
+      const k = (j * W + i) * 4;
+      img.data[k] = r; img.data[k + 1] = g; img.data[k + 2] = b; img.data[k + 3] = 255;
+      simg.data[k] = spec; simg.data[k + 1] = spec; simg.data[k + 2] = spec; simg.data[k + 3] = 255;
+      limg.data[k] = 255 * light; limg.data[k + 1] = 200 * light; limg.data[k + 2] = 120 * light; limg.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0); sctx.putImageData(simg, 0, 0); lctx.putImageData(limg, 0, 0);
+  const map = new THREE.CanvasTexture(cv); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8;
+  const specMap = new THREE.CanvasTexture(sc); const lightMap = new THREE.CanvasTexture(lc); lightMap.colorSpace = THREE.SRGBColorSpace;
+  return { map, specMap, lightMap };
+}
+function makeCloudTexture() {
+  const W = 1024, Hh = 512, cv = document.createElement('canvas'); cv.width = W; cv.height = Hh;
+  const ctx = cv.getContext('2d'), img = ctx.createImageData(W, Hh), n = hashNoise(99), rot = makeSiteRotation();
+  for (let j = 0; j < Hh; j++) { const glat = (0.5 - j / Hh) * Math.PI; for (let i = 0; i < W; i++) {
+    const glon = i / W * Math.PI * 2; const gv = [Math.cos(glat) * Math.cos(glon), Math.cos(glat) * Math.sin(glon), Math.sin(glat)]; const rv = rot(gv);
+    const latD = Math.asin(rv[2]) * 180 / Math.PI, aL = Math.abs(latD);
+    let c = fbm(n, rv[0] * 4 + 5, rv[1] * 4 + rv[2] * 3, 5, 2.2, 0.55) + 0.35 * fbm(n, rv[2] * 9, rv[0] * 9 + rv[1] * 9, 3);
+    // 위도 밴드: ITCZ(적도) 많음, 아열대 고압대(20~30°) 적음, 중위도 편서풍대 많음
+    const band = 0.9 - 0.45 * Math.exp(-Math.pow((aL - 25) / 8, 2)) + 0.25 * Math.exp(-Math.pow(aL / 6, 2)) + 0.2 * Math.exp(-Math.pow((aL - 52) / 12, 2));
+    let a = Math.max(0, (c - 0.03) * 3.0 * band); a = Math.min(1, a * a * 1.6);
+    if (glat > 1.35) a *= 0.25; // 발사장 상공은 맑게
+    const k = (j * W + i) * 4; img.data[k] = img.data[k + 1] = img.data[k + 2] = 255; img.data[k + 3] = a * 235;
+  } }
+  ctx.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function makeGroundTexture() {
+  const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d'), img = ctx.createImageData(S, S), n = hashNoise(31);
+  for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) { const v = fbm(n, i / S * 8, j / S * 8, 5); const k = (j * S + i) * 4; img.data[k] = 70 + v * 60; img.data[k + 1] = 104 + v * 70; img.data[k + 2] = 50 + v * 40; img.data[k + 3] = 255; }
+  ctx.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(40, 40); t.anisotropy = 8; return t;
+}
+function makeConcreteTexture() {
+  const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d'), img = ctx.createImageData(S, S), n = hashNoise(8);
+  for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) { const v = fbm(n, i / S * 20, j / S * 20, 4); let c = 165 + v * 45; if (i % 128 < 2 || j % 128 < 2) c -= 45; const k = (j * S + i) * 4; img.data[k] = c; img.data[k + 1] = c; img.data[k + 2] = c + 3; img.data[k + 3] = 255; }
+  ctx.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(4, 4); return t;
+}
+function makeSeaTexture() {
+  const S = 512, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d'), img = ctx.createImageData(S, S), n = hashNoise(55);
+  for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) { const v = fbm(n, i / S * 16, j / S * 16, 4); const k = (j * S + i) * 4; img.data[k] = 28 + v * 20; img.data[k + 1] = 78 + v * 30; img.data[k + 2] = 130 + v * 30; img.data[k + 3] = 255; }
+  ctx.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(30, 30); return t;
+}
+function drawTaegeukgi(ctx, x, y, w) { // 태극기 (w = 가로폭, 3:2)
+  const h = w * 2 / 3; ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2, R = h / 4; ctx.save(); ctx.translate(cx, cy); ctx.rotate(-Math.atan2(2, 3));
+  ctx.fillStyle = '#cd2e3a'; ctx.beginPath(); ctx.arc(0, 0, R, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = '#0047a0'; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI); ctx.fill();
+  ctx.fillStyle = '#cd2e3a'; ctx.beginPath(); ctx.arc(-R / 2, 0, R / 2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#0047a0'; ctx.beginPath(); ctx.arc(R / 2, 0, R / 2, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  // 4괘 (건·곤·감·리 근사)
+  ctx.fillStyle = '#000'; const bw = h * 0.3, bh = h * 0.045, gap = h * 0.075, d = h * 0.44;
+  const gua = [[[1, 1, 1], -Math.atan2(2, 3) + Math.PI / 2 + Math.PI, 1], [[0, 0, 0], -Math.atan2(2, 3) + Math.PI / 2, 1], [[0, 1, 0], Math.atan2(2, 3) + Math.PI / 2, 1], [[1, 0, 1], Math.atan2(2, 3) + Math.PI / 2 + Math.PI, 1]];
+  for (const [bars, ang] of gua) { ctx.save(); ctx.translate(cx + Math.cos(ang) * d, cy + Math.sin(ang) * d); ctx.rotate(ang + Math.PI / 2);
+    bars.forEach((solid, k) => { const yy = (k - 1) * gap; if (solid) ctx.fillRect(-bw / 2, yy - bh / 2, bw, bh); else { ctx.fillRect(-bw / 2, yy - bh / 2, bw * 0.44, bh); ctx.fillRect(bw * 0.06, yy - bh / 2, bw * 0.44, bh); } }); ctx.restore(); }
+  ctx.restore();
+}
+function makeRocketTexture(kind) { // 나로호(KSLV-1) 도장 참고: 흰 동체 · 태극기 · KOREA · 세로 '대한민국' · '나로'
+  const W = 1024, Hh = 1024, cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#f5f6f8'; ctx.fillRect(0, 0, W, Hh);
+  ctx.strokeStyle = 'rgba(0,0,0,0.07)'; ctx.lineWidth = 2;
+  for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.moveTo(i * W / 8, 0); ctx.lineTo(i * W / 8, Hh); ctx.stroke(); }
+  const stack = (text, cx, y0, size, color, weight = 'bold') => { ctx.fillStyle = color; ctx.font = `${weight} ${size}px "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; [...text].forEach((ch, k) => ctx.fillText(ch, cx, y0 + k * size * 1.08)); };
+  const cx = W * 0.5; // u=0.5 가 카메라(+z) 쪽을 향함
+  if (kind === 's1') {
+    for (let j = 1; j < 6; j++) { ctx.beginPath(); ctx.moveTo(0, j * Hh / 6); ctx.lineTo(W, j * Hh / 6); ctx.stroke(); }
+    stack('대한민국', cx, Hh * 0.10, 96, '#111');
+    stack('나로', cx, Hh * 0.56, 86, '#111');
+    // 소형 로고 밴드
+    ctx.fillStyle = '#0047a0'; ctx.fillRect(cx - 60, Hh * 0.77, 120, 8);
+    ctx.fillStyle = '#333'; ctx.font = 'bold 22px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('KARI · KSLV-1', cx, Hh * 0.81);
+    ctx.fillStyle = '#cd2e3a'; ctx.fillRect(0, Hh * 0.985, W, Hh * 0.015);
+  } else {
+    drawTaegeukgi(ctx, cx - 78, Hh * 0.12, 156);
+    ctx.fillStyle = '#111'; ctx.font = 'bold 56px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('KOREA', cx, Hh * 0.30);
+    ctx.fillStyle = '#0047a0'; ctx.fillRect(0, Hh * 0.62, W, 10);
+  }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.wrapS = THREE.RepeatWrapping; t.offset.x = 0.5; return t; // u=0.5 도장면이 +z(카메라)를 향하도록
+}
+function makeSpriteTexture(inner = 'rgba(255,255,255,1)', outer = 'rgba(255,255,255,0)', mid = 0.35) {
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S; const ctx = cv.getContext('2d');
+  const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); g.addColorStop(0, inner); g.addColorStop(mid, inner); g.addColorStop(1, outer);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, S, S); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+/* ============================================================
+   3. 사운드 (Web Audio, 코드 합성)
+   ============================================================ */
+class SoundFX {
+  constructor() { this.ctx = null; this.enabled = true; }
+  init() {
+    if (this.ctx) return;
+    const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.master = ctx.createGain(); this.master.gain.value = 0.9; this.master.connect(ctx.destination);
+    const len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+    let last = 0; for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; }
+    this.noiseBuf = buf;
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    this.lp = ctx.createBiquadFilter(); this.lp.type = 'lowpass'; this.lp.frequency.value = 200; this.lp.Q.value = 0.7;
+    this.engGain = ctx.createGain(); this.engGain.gain.value = 0;
+    src.connect(this.lp); this.lp.connect(this.engGain); this.engGain.connect(this.master); src.start();
+    const osc = ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = 38;
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 7; const lfoG = ctx.createGain(); lfoG.gain.value = 6; lfo.connect(lfoG); lfoG.connect(osc.frequency); lfo.start();
+    this.subGain = ctx.createGain(); this.subGain.gain.value = 0; osc.connect(this.subGain); this.subGain.connect(this.master); osc.start();
+  }
+  setEngine(level, density) {
+    if (!this.ctx) return;
+    const air = Math.pow(Math.max(density, 0), 0.35), g = this.enabled ? Math.min(1, level) * (0.06 + 0.94 * air) : 0, t = this.ctx.currentTime;
+    this.engGain.gain.setTargetAtTime(g * 0.8, t, 0.08); this.subGain.gain.setTargetAtTime(g * 0.35 * air, t, 0.08); this.lp.frequency.setTargetAtTime(120 + 700 * level * air, t, 0.1);
+  }
+  burst(freq = 800, dur = 0.5, vol = 0.6) {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, src = ctx.createBufferSource(); src.buffer = this.noiseBuf;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = 0.8;
+    const g = ctx.createGain(); g.gain.setValueAtTime(vol, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    src.connect(bp); bp.connect(g); g.connect(this.master); src.start(); src.stop(ctx.currentTime + dur);
+  }
+  beep(freq = 880, dur = 0.12, vol = 0.15) {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx, o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur); o.connect(g); g.connect(this.master); o.start(); o.stop(ctx.currentTime + dur);
+  }
+}
+
+/* ============================================================
+   4. 3D 장면
+   ============================================================ */
+const sim = new Sim(), sfx = new SoundFX();
+const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x000000);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.5, 1e8);
+const EARTH_CENTER = new THREE.Vector3(0, -C.R, 0);
+const SUN_DIR = new THREE.Vector3(0.55, 0.42, 0.72).normalize();
+const to3 = (x, y, z = 0) => new THREE.Vector3(x, y - C.R, z);
+
+const sun = new THREE.DirectionalLight(0xfff4e0, 2.6); sun.position.copy(SUN_DIR).multiplyScalar(1e7); scene.add(sun);
+scene.add(new THREE.AmbientLight(0x8090b0, 0.16));
+scene.add(new THREE.HemisphereLight(0x9ec4ff, 0x3a4a2a, 0.22));
+
+// 하늘 돔
+const skyMat = new THREE.ShaderMaterial({
+  uniforms: { uUp: { value: new THREE.Vector3(0, 1, 0) }, uSun: { value: SUN_DIR }, uAlpha: { value: 1 } },
+  vertexShader: `varying vec3 vDir; void main(){ vDir = normalize((modelMatrix * vec4(position,1.0)).xyz - cameraPosition); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader: `uniform vec3 uUp, uSun; uniform float uAlpha; varying vec3 vDir;
+    void main(){ vec3 d = normalize(vDir); float k = clamp(dot(d, uUp), 0.0, 1.0);
+      vec3 horizon = vec3(0.74, 0.85, 0.97), zenith = vec3(0.17, 0.42, 0.88);
+      vec3 col = mix(horizon, zenith, pow(k, 0.5));
+      float s = clamp(dot(d, uSun), 0.0, 1.0); col += vec3(1.0, 0.9, 0.7) * pow(s, 80.0) * 1.5 + vec3(0.9,0.85,0.7)*pow(s, 8.0)*0.15;
+      gl_FragColor = vec4(col * uAlpha, 1.0); }`,
+  side: THREE.BackSide, depthTest: false, depthWrite: false, transparent: false, fog: false,
+});
+const skyDome = new THREE.Mesh(new THREE.SphereGeometry(1000, 24, 12), skyMat); skyDome.renderOrder = -3; skyDome.frustumCulled = false; scene.add(skyDome);
+
+// 별 + 은하수
+function makeStars(N, band) {
+  const pos = new Float32Array(N * 3), col = new Float32Array(N * 3), R0 = 2e7;
+  const gn = new THREE.Vector3(0.35, 0.75, 0.55).normalize(), e1 = new THREE.Vector3().crossVectors(gn, new THREE.Vector3(1, 0, 0)).normalize(), e2 = new THREE.Vector3().crossVectors(gn, e1);
+  for (let i = 0; i < N; i++) {
+    let v;
+    if (band) { const th = Math.random() * Math.PI * 2, off = (Math.random() + Math.random() + Math.random() - 1.5) * 0.22; v = new THREE.Vector3().addScaledVector(e1, Math.cos(th)).addScaledVector(e2, Math.sin(th)).addScaledVector(gn, off).normalize(); }
+    else { const u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, rr = Math.sqrt(1 - u * u); v = new THREE.Vector3(rr * Math.cos(th), u, rr * Math.sin(th)); }
+    pos[i * 3] = v.x * R0; pos[i * 3 + 1] = v.y * R0; pos[i * 3 + 2] = v.z * R0;
+    const b = band ? 0.12 + Math.random() * 0.25 : 0.3 + Math.pow(Math.random(), 3) * 0.7, tint = Math.random();
+    col[i * 3] = b * (0.85 + tint * 0.15); col[i * 3 + 1] = b * (0.85 + Math.abs(tint - 0.5) * 0.2); col[i * 3 + 2] = b * (1.0 - tint * 0.12 + (band ? 0.08 : 0));
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const p = new THREE.Points(g, new THREE.PointsMaterial({ size: band ? 1.6 : 2.2, sizeAttenuation: false, vertexColors: true, depthTest: false, depthWrite: false, fog: false, transparent: false, blending: THREE.AdditiveBlending, color: 0x000000 }));
+  p.renderOrder = -2; p.frustumCulled = false; scene.add(p); return p;
+}
+const stars = makeStars(6000, false), milky = makeStars(16000, true);
+const brightStars = new THREE.Group(); scene.add(brightStars);
+{ const tex = makeSpriteTexture('rgba(255,255,255,1)', 'rgba(200,220,255,0)', 0.15); for (let i = 0; i < 36; i++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, sizeAttenuation: false, depthTest: false, depthWrite: false, transparent: false, blending: THREE.AdditiveBlending, color: 0x000000 })); const u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, rr = Math.sqrt(1 - u * u); s.position.set(rr * Math.cos(th), u, rr * Math.sin(th)).multiplyScalar(2e7); s.scale.setScalar(0.006 + Math.random() * 0.008); s.renderOrder = -2; brightStars.add(s); } }
+const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeSpriteTexture('rgba(255,250,235,1)', 'rgba(255,200,120,0)'), sizeAttenuation: false, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
+sunSprite.scale.set(0.06, 0.06, 1); scene.add(sunSprite);
+
+// 지구 (실제 대륙 · 야간 도시 불빛)
+const earthTex = makeEarthTextures();
+const sunView = new THREE.Vector3();
+const earthMat = new THREE.MeshPhongMaterial({ map: earthTex.map, specularMap: earthTex.specMap, specular: new THREE.Color(0x66778a), shininess: 18, emissive: new THREE.Color(0xffffff), emissiveMap: earthTex.lightMap, emissiveIntensity: 0.45 });
+earthMat.onBeforeCompile = sh => {
+  sh.uniforms.uSunView = { value: sunView };
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 uSunView;')
+    .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= smoothstep(0.08, -0.12, dot(normalize(vNormal), uSunView));');
+};
+const earth = new THREE.Mesh(new THREE.SphereGeometry(C.R, 256, 160), earthMat); earth.position.copy(EARTH_CENTER); scene.add(earth);
+const clouds = new THREE.Mesh(new THREE.SphereGeometry(C.R + 9000, 128, 80), new THREE.MeshLambertMaterial({ map: makeCloudTexture(), transparent: true, depthWrite: false, opacity: 0.95 }));
+clouds.position.copy(EARTH_CENTER); scene.add(clouds);
+const ATM_R = C.R + 120e3;
+const atmMat = new THREE.ShaderMaterial({
+  uniforms: { uCenter: { value: EARTH_CENTER }, uR: { value: C.R }, uRa: { value: ATM_R }, uSun: { value: SUN_DIR }, uAlpha: { value: 0 } },
+  vertexShader: `#include <common>
+    #include <logdepthbuf_pars_vertex>
+    varying vec3 vWorld; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w;
+    #include <logdepthbuf_vertex>
+    }`,
+  fragmentShader: `#include <logdepthbuf_pars_fragment>
+    uniform vec3 uCenter, uSun; uniform float uR, uRa, uAlpha; varying vec3 vWorld;
+    void main(){
+      #include <logdepthbuf_fragment>
+      vec3 d = normalize(vWorld - cameraPosition); vec3 ec = uCenter - cameraPosition; float t = dot(ec, d); float b = length(ec - t * d);
+      float f = clamp((uRa - b) / (uRa - uR), 0.0, 1.0); f = pow(f, 1.6);
+      vec3 p = normalize(vWorld - uCenter); float day = smoothstep(-0.25, 0.35, dot(p, uSun));
+      vec3 col = mix(vec3(0.25, 0.55, 1.0), vec3(0.85, 0.93, 1.0), f * f) * f * (0.15 + 0.85 * day) * 1.8;
+      gl_FragColor = vec4(col * uAlpha, 1.0); }`,
+  side: THREE.BackSide, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(ATM_R, 128, 80), atmMat); atmosphere.position.copy(EARTH_CENTER); scene.add(atmosphere);
+
+// 발사장 (나로우주센터 풍: 해안 절벽 위 콘크리트 패드, 바다·구릉)
+const ground = new THREE.Mesh(new THREE.CircleGeometry(15000, 96), new THREE.MeshLambertMaterial({ map: makeGroundTexture() }));
+ground.rotation.x = -Math.PI / 2; ground.position.y = 0.4; scene.add(ground);
+const sea = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000), new THREE.MeshPhongMaterial({ map: makeSeaTexture(), specular: new THREE.Color(0x99aabb), shininess: 40 }));
+sea.rotation.x = -Math.PI / 2; sea.position.set(-16200, 0.5, 0); scene.add(sea); // 서쪽(−x)은 바다, 해안선 x≈-1200
+const apron = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshLambertMaterial({ map: makeConcreteTexture() }));
+apron.rotation.x = -Math.PI / 2; apron.position.y = 0.7; scene.add(apron);
+{
+  const white = new THREE.MeshStandardMaterial({ color: 0xe9ebee, metalness: 0.3, roughness: 0.55 });
+  const blue = new THREE.MeshStandardMaterial({ color: 0x1f5fbf, metalness: 0.4, roughness: 0.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x3b4048, metalness: 0.4, roughness: 0.7 });
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(30, C.padHeight, 30), new THREE.MeshStandardMaterial({ color: 0x9a9da3, roughness: 0.9 })); pad.position.y = C.padHeight / 2; scene.add(pad);
+  const hole = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, C.padHeight + 0.2, 24), new THREE.MeshBasicMaterial({ color: 0x050607 })); hole.position.y = C.padHeight / 2; scene.add(hole);
+  const trench = new THREE.Mesh(new THREE.BoxGeometry(12, 6, 50), dark); trench.position.set(0, -2.5, 26); scene.add(trench);
+  // 기립 타워(이렉터): 흰 판형 구조 + 파란 트러스, 로켓 서쪽에 밀착
+  const tower = new THREE.Group();
+  for (const [dx, dz] of [[-2, -4], [2, -4], [-2, 4], [2, 4]]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(1.0, 42, 1.0), white); leg.position.set(dx, 21, dz); tower.add(leg); }
+  for (let y = 4; y < 42; y += 4) {
+    for (const [a, b] of [[[-2, -4], [2, -4]], [[-2, 4], [2, 4]], [[-2, -4], [-2, 4]], [[2, -4], [2, 4]]]) { const len = Math.hypot(b[0] - a[0], b[1] - a[1]); const beam = new THREE.Mesh(new THREE.BoxGeometry(len, 0.35, 0.35), blue); beam.position.set((a[0] + b[0]) / 2, y, (a[1] + b[1]) / 2); beam.rotation.y = -Math.atan2(b[1] - a[1], b[0] - a[0]); tower.add(beam); }
+    const brace = new THREE.Mesh(new THREE.BoxGeometry(0.28, 9.2, 0.28), blue); brace.position.set(-2, y - 2, 0); brace.rotation.x = Math.atan2(8, 4) * 0.5; tower.add(brace);
+    const brace2 = new THREE.Mesh(new THREE.BoxGeometry(0.28, 9.2, 0.28), blue); brace2.position.set(2, y - 2, 0); brace2.rotation.x = -Math.atan2(8, 4) * 0.5; tower.add(brace2);
+    if (y % 8 === 0) { const deck = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.3, 8.6), white); deck.position.y = y; tower.add(deck); }
+  }
+  for (const y of [8, 17, 26]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.6, 1.2), blue); arm.position.set(3.6, y, 0); tower.add(arm); }
+  const mast = new THREE.Mesh(new THREE.BoxGeometry(1.2, 46, 1.2), white); mast.position.set(-1, 23, -6); tower.add(mast);
+  tower.position.set(-6.2, C.padHeight, 0); scene.add(tower);
+  for (const [dx, dz] of [[70, 70], [-70, 70], [70, -70], [-70, -70]]) { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 1.2, 90, 8), white); m.position.set(dx, 45, dz); scene.add(m); }
+  for (const [x, z, w, h, d] of [[-120, -70, 36, 11, 24], [-130, 40, 28, 8, 26], [140, -100, 54, 14, 28]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: 0xdadce0, roughness: 0.9 })); b.position.set(x, h / 2 + 0.7, z); scene.add(b); }
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(10, 2600), new THREE.MeshLambertMaterial({ color: 0x4a4d52 })); road.rotation.x = -Math.PI / 2; road.position.set(110, 0.55, -1300); scene.add(road);
+  // 구릉
+  const hillMat = new THREE.MeshLambertMaterial({ color: 0x3f6b35 });
+  for (const [x, z, r, h] of [[900, -1500, 700, 160], [1600, -600, 900, 220], [1500, 900, 800, 190], [600, 1700, 600, 130], [2600, 300, 1200, 260]]) { const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 24), hillMat); m.position.set(x, h / 2 - 5, z); scene.add(m); }
+  // 절벽(해안선)
+  const cliff = new THREE.Mesh(new THREE.BoxGeometry(60, 26, 30000), new THREE.MeshLambertMaterial({ color: 0x6b6459 })); cliff.position.set(-1230, -12, 0); scene.add(cliff);
+}
+// 발사장 서쪽 지면을 바다로: 지면 원판을 x<-1200 에서 잘라내는 대신 바다 평면을 위에 올림
+sea.position.y = 0.9; sea.renderOrder = 1;
+
+// ---- 나로호 스타일 로켓 ----
+const rocket = new THREE.Group(); scene.add(rocket);
+const stage1 = new THREE.Group(), stage2 = new THREE.Group(); rocket.add(stage1); rocket.add(stage2);
+const RAD = ROCKET.radius;
+const bodyMat = t => new THREE.MeshStandardMaterial({ map: t, roughness: 0.5, metalness: 0.05 });
+const engineMat = new THREE.MeshStandardMaterial({ color: 0x2a2d33, metalness: 0.85, roughness: 0.35, side: THREE.DoubleSide });
+function makeBell(rt, rb, h) { return new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 24, 1, true), engineMat); }
+const s1Flames = [], s2Flames = [];
+function makeFlame(scaleR, color = 0xff8a2a) {
+  const g = new THREE.Group();
+  const outer = new THREE.Mesh(new THREE.CylinderGeometry(scaleR, scaleR * 0.12, 1, 14, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(scaleR * 0.55, scaleR * 0.05, 1, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0xbfe0ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  outer.geometry.translate(0, -0.5, 0); core.geometry.translate(0, -0.5, 0); core.scale.y = 0.55;
+  g.add(outer); g.add(core); g.userData = { outer, core }; g.visible = false; return g;
+}
+function ogiveProfile(rBase, len, n = 18) { const pts = []; for (let i = 0; i <= n; i++) { const t = i / n; const r = rBase * Math.sqrt(1 - Math.pow(1 - t, 2.2)) * (t < 0.04 ? 0.6 + 10 * t : 1); pts.push(new THREE.Vector2(Math.max(0.02, r), len * (1 - t))); } pts[0].x = 0.02; return pts; }
+{ // 1단: 흰 동체 · RD-151 단일 엔진 · 하단 스커트
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(RAD, RAD, 22, 48), bodyMat(makeRocketTexture('s1'))); body.position.y = 11; stage1.add(body);
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(RAD, RAD + 0.12, 1.6, 48), new THREE.MeshStandardMaterial({ color: 0xd9dbe0, roughness: 0.6 })); skirt.position.y = 0.8; stage1.add(skirt);
+  const bell = makeBell(0.45, 1.05, 2.4); bell.position.y = -0.2; stage1.add(bell);
+  const f = makeFlame(1.15); f.position.set(0, -1.4, 0); stage1.add(f); s1Flames.push(f);
+  stage1.userData.light = new THREE.PointLight(0xff9a3a, 0, 500, 2); stage1.userData.light.position.set(0, -6, 0); stage1.add(stage1.userData.light);
+  // 1단 재진입 가열 글로우
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeSpriteTexture('rgba(255,150,60,1)', 'rgba(255,80,20,0)'), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })); glow.scale.set(40, 40, 1); glow.position.y = 6; stage1.add(glow); stage1.userData.glow = glow;
+}
+{ // 2단 + 오자이브 페어링(반쪽 2개) + 위성
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(RAD, RAD, 4.5, 48), bodyMat(makeRocketTexture('s2'))); body.position.y = 2.25; stage2.add(body);
+  const bell = makeBell(0.3, 0.8, 1.8); bell.position.y = -0.6; stage2.add(bell);
+  const f = makeFlame(0.9, 0xa8c4ff); f.position.y = -1.5; stage2.add(f); s2Flames.push(f);
+  stage2.userData.light = new THREE.PointLight(0xffb070, 0, 400, 2); stage2.userData.light.position.set(0, -6, 0); stage2.add(stage2.userData.light);
+  const fairMat = new THREE.MeshStandardMaterial({ color: 0xf5f6f8, roughness: 0.45, side: THREE.DoubleSide });
+  stage2.userData.fairings = [];
+  const prof = ogiveProfile(RAD, 6.5);
+  for (const side of [-1, 1]) {
+    const g = new THREE.Group();
+    const half = new THREE.Mesh(new THREE.LatheGeometry(prof, 32, side > 0 ? 0 : Math.PI, Math.PI), fairMat); g.add(half);
+    g.position.y = 4.5; stage2.add(g); stage2.userData.fairings.push(g); g.userData.side = side;
+  }
+  const sat = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.6, 1.2), new THREE.MeshStandardMaterial({ color: 0xc9a227, metalness: 0.7, roughness: 0.3 })); sat.position.y = 5.8; stage2.add(sat);
+  for (const s of [-1, 1]) { const panel = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.9, 1.4), new THREE.MeshStandardMaterial({ color: 0x1b3a8a, metalness: 0.6, roughness: 0.3 })); panel.position.set(s * 0.95, 0, 0); sat.add(panel); }
+  // 천음속 수증기 콘 (프란틀-글로어트 응결)
+  const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.3, RAD * 3.2, 8, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })); cone.position.y = 2; stage2.add(cone); stage2.userData.vapor = cone;
+}
+stage2.position.y = ROCKET.s1.length;
+const detachedStage1 = new THREE.Group(); scene.add(detachedStage1);
+const detachedFairings = [];
+
+const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeSpriteTexture('rgba(255,190,90,1)', 'rgba(255,150,50,0)'), sizeAttenuation: false, depthTest: false, transparent: true }));
+marker.scale.set(0.035, 0.035, 1); marker.visible = false; scene.add(marker);
+const trailGeo = new THREE.BufferGeometry(); trailGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3000 * 3), 3)); trailGeo.setDrawRange(0, 0);
+const trailLine = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.85 })); trailLine.frustumCulled = false; trailLine.visible = false; scene.add(trailLine);
+const orbitGeo = new THREE.BufferGeometry(); orbitGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(257 * 3), 3));
+const orbitLine = new THREE.Line(orbitGeo, new THREE.LineBasicMaterial({ color: 0x6ee7ff, transparent: true, opacity: 0.95 })); orbitLine.frustumCulled = false; orbitLine.visible = false; scene.add(orbitLine);
+
+/* ---------- 파티클 (로켓 기준 좌표계) ---------- */
+class Particles {
+  constructor(max, additive) {
+    this.max = max; this.n = 0;
+    this.px = new Float64Array(max); this.py = new Float64Array(max); this.pz = new Float64Array(max);
+    this.vx = new Float32Array(max); this.vy = new Float32Array(max); this.vz = new Float32Array(max);
+    this.life = new Float32Array(max); this.maxLife = new Float32Array(max); this.size0 = new Float32Array(max); this.size1 = new Float32Array(max); this.kind = new Uint8Array(max);
+    this.pos = new Float32Array(max * 3); this.col = new Float32Array(max * 3); this.sz = new Float32Array(max); this.al = new Float32Array(max);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('color', new THREE.BufferAttribute(this.col, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('size', new THREE.BufferAttribute(this.sz, 1).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('alpha', new THREE.BufferAttribute(this.al, 1).setUsage(THREE.DynamicDrawUsage));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uScale: { value: 1 } },
+      vertexShader: `#include <common>
+        #include <logdepthbuf_pars_vertex>
+        attribute float size; attribute float alpha; varying vec3 vColor; varying float vAlpha; uniform float uScale;
+        void main(){ vColor = color; vAlpha = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = min(512.0, size * uScale / -mv.z); gl_Position = projectionMatrix * mv;
+        #include <logdepthbuf_vertex>
+        }`,
+      fragmentShader: `#include <logdepthbuf_pars_fragment>
+        varying vec3 vColor; varying float vAlpha;
+        void main(){
+          #include <logdepthbuf_fragment>
+          float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.08, d) * vAlpha; if (a < 0.003) discard; gl_FragColor = vec4(vColor, a); }`,
+      vertexColors: true, transparent: true, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    });
+    this.points = new THREE.Points(g, mat); this.points.frustumCulled = false; scene.add(this.points); this.mat = mat;
+  }
+  spawn(x, y, z, vx, vy, vz, life, s0, s1, kind) {
+    let i = this.n; if (i >= this.max) i = Math.floor(Math.random() * this.max); else this.n++;
+    this.px[i] = x; this.py[i] = y; this.pz[i] = z; this.vx[i] = vx; this.vy[i] = vy; this.vz[i] = vz;
+    this.life[i] = 0; this.maxLife[i] = life; this.size0[i] = s0; this.size1[i] = s1; this.kind[i] = kind;
+  }
+  update(dt, driftX, driftY, driftZ, anchor, upX, upY, upZ, groundRel) {
+    let n = this.n;
+    for (let i = 0; i < n; i++) {
+      this.life[i] += dt;
+      if (this.life[i] >= this.maxLife[i]) { n--; this.copy(n, i); i--; continue; }
+      const k = this.kind[i], t = this.life[i] / this.maxLife[i];
+      if (groundRel > -300) {
+        const u = this.px[i] * upX + this.py[i] * upY + this.pz[i] * upZ;
+        if (u < groundRel) {
+          const vu = this.vx[i] * upX + this.vy[i] * upY + this.vz[i] * upZ;
+          if (vu < 0) { const a = Math.random() * Math.PI * 2, sp = -vu * (k === 0 ? 0.9 : 0.6); this.vx[i] += -vu * upX + Math.cos(a) * sp; this.vy[i] += -vu * upY; this.vz[i] += -vu * upZ + Math.sin(a) * sp; }
+          this.px[i] += (groundRel - u) * upX; this.py[i] += (groundRel - u) * upY; this.pz[i] += (groundRel - u) * upZ;
+          if (k === 0) this.life[i] += dt * 2;
+        }
+      }
+      const damp = k === 1 ? 0.985 : 0.94;
+      this.vx[i] *= damp; this.vy[i] *= damp; this.vz[i] *= damp;
+      if (k === 1) { this.vx[i] += upX * 1.2 * dt; this.vy[i] += upY * 1.2 * dt; this.vz[i] += upZ * 1.2 * dt; }
+      this.px[i] += (this.vx[i] - driftX) * dt; this.py[i] += (this.vy[i] - driftY) * dt; this.pz[i] += (this.vz[i] - driftZ) * dt;
+      this.pos[i * 3] = this.px[i]; this.pos[i * 3 + 1] = this.py[i]; this.pos[i * 3 + 2] = this.pz[i];
+      this.sz[i] = this.size0[i] + (this.size1[i] - this.size0[i]) * t;
+      if (k === 0) { const c = t < 0.3 ? [1.0, 0.95, 0.75] : t < 0.7 ? [1.0, 0.55, 0.15] : [0.7, 0.15, 0.03]; this.col[i * 3] = c[0]; this.col[i * 3 + 1] = c[1]; this.col[i * 3 + 2] = c[2]; this.al[i] = (1 - t) * 0.6; }
+      else if (k === 1) { const g = 0.78 - t * 0.25; this.col[i * 3] = g; this.col[i * 3 + 1] = g; this.col[i * 3 + 2] = g + 0.03; this.al[i] = Math.sin(t * Math.PI) * 0.85; }
+      else { this.col[i * 3] = 1; this.col[i * 3 + 1] = 0.85; this.col[i * 3 + 2] = 0.5; this.al[i] = 1 - t; }
+    }
+    this.n = n; this.points.position.copy(anchor); this.points.geometry.setDrawRange(0, n);
+    for (const a of ['position', 'color', 'size', 'alpha']) this.points.geometry.attributes[a].needsUpdate = true;
+    this.mat.uniforms.uScale.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
+  }
+  copy(from, to) { if (from === to) return; for (const a of ['px', 'py', 'pz', 'vx', 'vy', 'vz', 'life', 'maxLife', 'size0', 'size1', 'kind']) this[a][to] = this[a][from]; }
+}
+const fireP = new Particles(4000, true), smokeP = new Particles(3000, false);
+
+/* ============================================================
+   5. 카메라 · 입력 · UI
+   ============================================================ */
+const cam = { mode: 'cine', yaw: Math.PI / 2, pitch: 0.12, dist: 110, offset: new THREE.Vector3(), shake: 0, initialized: false, orbitYaw: 0.9, wideK: 0 };
+const state = { speed: 1, last: performance.now(), simAccum: 0 };
+const $ = id => document.getElementById(id);
+const dom = { tplus: $('tplus'), phaseTxt: $('phaseTxt'), phaseBig: $('phaseBig'), alt: $('alt'), spd: $('spd'), mach: $('mach'), fuel: $('fuel'), fuelK: $('fuelK'), fuelI: $('fuelI'), apsis: $('apsis'), gee: $('gee'), mass: $('mass'), q: $('q'), gamma: $('gamma'), range: $('range'), toasts: $('toasts'), countdown: $('countdown') };
+
+function toast(text, t) { const el = document.createElement('div'); el.className = 'toast'; el.innerHTML = `<div class="t">${fmtT(t)}</div>${text}`; dom.toasts.appendChild(el); setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 4500); }
+function fmtT(t) { const s = Math.abs(t), m = Math.floor(s / 60), ss = Math.floor(s % 60); return `T${t < 0 ? '−' : '+'}${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`; }
+function setSpeed(s) { state.speed = s; document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === s)); }
+function setCam(m) { if (m === 'free' && cam.mode !== 'free') { // 현재 시점에서 자연스럽게 이어받기
+    const off = cam.offset; const up = _up; const e1 = new THREE.Vector3().crossVectors(_z, up).normalize(); cam.dist = Math.max(25, off.length()); const o = off.clone().normalize(); cam.pitch = Math.asin(Math.max(-1, Math.min(1, o.dot(up)))); cam.yaw = Math.atan2(o.dot(_z), o.dot(e1)); }
+  cam.mode = m; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === m)); }
+function doLaunch() { if (!armed || sim.phase !== 'PRELAUNCH') return; try { sfx.init(); sfx.ctx.resume().catch(() => {}); } catch {} sim.launch(); armed = false; $('btnLaunch').disabled = true; send('started'); }
+function doReset() {
+  sim.reset(); armed = false; reported = false; state.simAccum = 0; $('btnLaunch').disabled = true; $('btnLaunch').textContent = '먼저 예측해요'; send('reset'); dom.toasts.innerHTML = '';
+  stage1.position.set(0, 0, 0); stage1.quaternion.identity(); rocket.add(stage1); stage1.visible = true; stage1.userData.glow.material.opacity = 0;
+  stage2.position.y = ROCKET.s1.length; for (const g of stage2.userData.fairings) g.visible = true;
+  for (const f of detachedFairings) scene.remove(f.group); detachedFairings.length = 0;
+  fireP.n = 0; smokeP.n = 0; trailGeo.setDrawRange(0, 0); orbitLine.visible = false; cam.shake = 0; cam.initialized = false; cam.wideK = 0; sfx.setEngine(0, 1);
+}
+$('btnDetails').onclick = () => { const expanded = $('hud').classList.toggle('expanded'); $('btnDetails').setAttribute('aria-expanded', expanded); $('btnDetails').textContent = expanded ? '비행 정보 접기' : '비행 정보 펼치기'; };
+$('btnLaunch').onclick = doLaunch; $('btnReset').onclick = doReset;
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => setSpeed(+b.dataset.speed));
+document.querySelectorAll('[data-cam]').forEach(b => b.onclick = () => setCam(b.dataset.cam));
+$('btnSound').onclick = () => { sfx.enabled = !sfx.enabled; $('btnSound').textContent = sfx.enabled ? '🔊 사운드' : '🔇 음소거'; if (sfx.enabled) { sfx.init(); sfx.ctx.resume(); } };
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); doLaunch(); }
+  if (e.key === '1') setSpeed(1); if (e.key === '2') setSpeed(10); if (e.key === '3') setSpeed(100);
+  if (e.key === 'c' || e.key === 'C') setCam(cam.mode === 'cine' ? 'free' : 'cine');
+  if (e.key === 'r' || e.key === 'R') doReset();
+});
+let drag = null; const cvs = renderer.domElement;
+cvs.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, id: e.pointerId }; cvs.setPointerCapture(e.pointerId); });
+cvs.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+  if ((dx || dy) && cam.mode !== 'free') setCam('free');
+  cam.yaw -= dx * 0.006; cam.pitch = Math.max(-1.45, Math.min(1.45, cam.pitch + dy * 0.006));
+});
+cvs.addEventListener('pointerup', () => drag = null); cvs.addEventListener('pointercancel', () => drag = null);
+cvs.addEventListener('wheel', e => { e.preventDefault(); if (cam.mode !== 'free') setCam('free'); cam.dist = Math.min(4e7, Math.max(20, cam.dist * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
+let pinch = null;
+cvs.addEventListener('touchstart', e => { if (e.touches.length === 2) pinch = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); }, { passive: true });
+cvs.addEventListener('touchmove', e => { if (e.touches.length === 2 && pinch) { const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); cam.dist = Math.min(4e7, Math.max(20, cam.dist * pinch / d)); pinch = d; if (cam.mode !== 'free') setCam('free'); } }, { passive: true });
+window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+
+/* ============================================================
+   6. 메인 루프
+   ============================================================ */
+const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _head = new THREE.Vector3(), _e1 = new THREE.Vector3(), _y = new THREE.Vector3(0, 1, 0), _z = new THREE.Vector3(0, 0, 1), _tmp = new THREE.Vector3();
+const skyBlue = new THREE.Color(0.74, 0.85, 0.97), fogColor = new THREE.Color();
+scene.fog = new THREE.Fog(0x000000, 3000, 60000);
+let lastOrbitCalc = -1;
+const TRIPOD = new THREE.Vector3(75, 3, 230); // 지상 고정 카메라(발사 장면)
+
+function handleEvents() {
+  for (const ev of sim.events) {
+    toast(ev.text, ev.t);
+    if (ev.type === 'ignition') sfx.beep(660, 0.15, 0.2);
+    if (ev.type === 'liftoff') { cam.shake = 1.2; sfx.beep(990, 0.2, 0.2); }
+    if (ev.type === 'sep') {
+      rocket.remove(stage1); detachedStage1.add(stage1); stage1.position.set(0, 0, 0); stage1.quaternion.identity();
+      stage2.position.y = 0; sfx.burst(500, 0.6, 0.7); cam.shake = 0.9;
+      const hx = sim.dirx, hy = sim.diry;
+      for (let i = 0; i < 220; i++) { const a = Math.random() * Math.PI * 2, sp = 6 + Math.random() * 24, ax = Math.cos(a), az = Math.sin(a); const px = -hy * ax, py = hx * ax;
+        fireP.spawn(px * 1.2, py * 1.2, az * 1.2, px * sp - hx * 3, py * sp - hy * 3, az * sp, 0.6 + Math.random() * 1.1, 1.0, 3.5, 2); }
+      for (let i = 0; i < 80; i++) { const a = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 10, ax = Math.cos(a), az = Math.sin(a); const px = -hy * ax, py = hx * ax;
+        smokeP.spawn(px * 1.5, py * 1.5, az * 1.5, px * sp, py * sp, az * sp, 2 + Math.random() * 2, 2.5, 14, 1); }
+    }
+    if (ev.type === 's2ign') { sfx.burst(300, 0.4, 0.4); cam.shake = 0.4; }
+    if (ev.type === 'fairing') {
+      sfx.burst(900, 0.4, 0.4);
+      for (const g of stage2.userData.fairings) g.visible = false;
+      const prof = ogiveProfile(RAD, 6.5);
+      for (const b of sim.bodies.filter(b => b.kind === 'fairing')) {
+        const g = new THREE.Group();
+        const half = new THREE.Mesh(new THREE.LatheGeometry(prof, 32, b.side > 0 ? 0 : Math.PI, Math.PI), new THREE.MeshStandardMaterial({ color: 0xf5f6f8, roughness: 0.45, side: THREE.DoubleSide })); half.position.y = -3; g.add(half); scene.add(g); detachedFairings.push({ group: g, body: b });
+      }
+      for (let i = 0; i < 60; i++) { const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 6; fireP.spawn(sim.dirx * 6, sim.diry * 6, 0, Math.cos(a) * sp, Math.sin(a) * sp, (Math.random() - 0.5) * sp, 0.5 + Math.random() * 0.6, 0.6, 2, 2); }
+    }
+    if (ev.type === 'seco') sfx.beep(520, 0.25, 0.2);
+    if (ev.type === 'orbit') { sfx.beep(880, 0.15, 0.2); setTimeout(() => sfx.beep(1320, 0.3, 0.2), 180); }
+    if (ev.type === 'fail' || ev.type === 'crash') sfx.burst(150, 1.2, 0.8);
+  }
+  sim.events.length = 0;
+}
+function updateOrbitLine() {
+  if (sim.phase !== 'ORBIT' || !(sim.stats.eps < 0)) { orbitLine.visible = false; return; }
+  const a = sim.stats.a, e = sim.stats.e, r = Math.hypot(sim.x, sim.y), hh = sim.x * sim.vy - sim.y * sim.vx, mu = C.GM;
+  const ex = (sim.vy * hh) / mu - sim.x / r, ey = (-sim.vx * hh) / mu - sim.y / r; const en = Math.hypot(ex, ey) || 1; const px = ex / en, py = ey / en, qx = -py, qy = px;
+  const pos = orbitGeo.attributes.position.array;
+  for (let i = 0; i <= 256; i++) { const th = i / 256 * Math.PI * 2, rr = a * (1 - e * e) / (1 + e * Math.cos(th)); pos[i * 3] = rr * (Math.cos(th) * px + Math.sin(th) * qx); pos[i * 3 + 1] = rr * (Math.cos(th) * py + Math.sin(th) * qy) - C.R; pos[i * 3 + 2] = 0; }
+  orbitGeo.attributes.position.needsUpdate = true; orbitLine.visible = true;
+}
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dtReal = Math.min(0.1, (now - state.last) / 1000); state.last = now;
+  if (renderer.domElement.clientWidth !== window.innerWidth || renderer.domElement.clientHeight !== window.innerHeight) { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+  const simDt = 0.02; state.simAccum += dtReal * state.speed;
+  let steps = 0; while (state.simAccum >= simDt && steps < 400) { sim.step(simDt); state.simAccum -= simDt; steps++; }
+  if (steps >= 400) state.simAccum = 0;
+  handleEvents();
+  if (!reported && ['ORBIT', 'FAIL', 'CRASH'].includes(sim.phase)) { reported = true; send('result', { phase: sim.phase, time: sim.t, altitude: sim.alt / 1000, perigee: sim.stats.rp / 1000, apogee: sim.stats.ra / 1000, fuel: sim.fuelScale * 100 }); }
+
+  // ---- 로켓 자세/위치 ----
+  const base = to3(sim.x, sim.y); _head.set(sim.dirx, sim.diry, 0);
+  rocket.position.copy(base); rocket.quaternion.setFromUnitVectors(_y, _head);
+  _up.copy(base).sub(EARTH_CENTER).normalize();
+  const rocketLen = sim.stage === 1 ? ROCKET.s1.length + ROCKET.s2.length : ROCKET.s2.length;
+  const center = _v.copy(base).addScaledVector(_head, rocketLen * 0.45).clone();
+  const s1b = sim.bodies.find(b => b.kind === 's1');
+  if (s1b && stage1.parent === detachedStage1) {
+    detachedStage1.position.copy(to3(s1b.x, s1b.y)); const hv = Math.hypot(s1b.vx, s1b.vy) || 1; _v2.set(s1b.vx / hv, s1b.vy / hv, 0); detachedStage1.quaternion.setFromUnitVectors(_y, _v2); detachedStage1.rotateZ(s1b.angle);
+    stage1.userData.glow.material.opacity = (s1b.vr < 0 && s1b.alt < 90000) ? Math.min(1, s1b.q / 15000) : 0; // 재진입 가열
+  } else if (stage1.parent === detachedStage1) stage1.visible = false;
+  for (const f of detachedFairings) { const b = f.body; if (b.dead || !sim.bodies.includes(b)) { f.group.visible = false; continue; } f.group.position.copy(to3(b.x, b.y, b.z)); const hv = Math.hypot(b.vx, b.vy) || 1; _v2.set(b.vx / hv, b.vy / hv, 0); f.group.quaternion.setFromUnitVectors(_y, _v2); f.group.rotateX(b.angle); }
+
+  // ---- 엔진 화염 / 조명 / 사운드 / 천음속 콘 ----
+  const alt = sim.alt, rho = airDensity(alt), dens = rho / C.rho0, vac = 1 - Math.min(1, dens * 40);
+  const s1On = sim.stage === 1 && sim.thrust > 0, s2On = sim.stage === 2 && sim.thrust > 0, flick = () => 0.85 + Math.random() * 0.3;
+  for (const f of s1Flames) { f.visible = s1On; if (s1On) { f.scale.set(1 + vac * 2.5, (16 + vac * 28) * flick(), 1 + vac * 2.5); f.userData.core.scale.y = 0.5 * flick(); f.userData.outer.material.opacity = 0.5 - 0.35 * vac; } }
+  for (const f of s2Flames) { f.visible = s2On; if (s2On) { f.scale.set(1 + vac * 3, (14 + vac * 40) * flick(), 1 + vac * 3); f.userData.core.scale.y = 0.5 * flick(); f.userData.outer.material.opacity = 0.45 - 0.33 * vac; } }
+  stage1.userData.light.intensity = s1On ? 30000 * flick() : 0; stage2.userData.light.intensity = s2On ? 15000 * flick() : 0;
+  sfx.setEngine(sim.thrust / ROCKET.s1.thrust, dens);
+  { const m = sim.mach || 0; const k = Math.exp(-Math.pow((m - 1.0) / 0.13, 2)) * Math.min(1, dens * 3.5) * 0.45; stage2.userData.vapor.material.opacity = k; stage2.userData.vapor.visible = k > 0.01; }
+
+  // ---- 파티클 ----
+  {
+    const vmag = sim.speed, dr = Math.min(vmag * state.speed, 260), ddx = vmag > 0 ? sim.vx / vmag * dr : 0, ddy = vmag > 0 ? sim.vy / vmag * dr : 0;
+    const groundEffect = Math.max(0, 1 - alt / 60);
+    if (s1On || s2On) {
+      const nozzleOff = s1On ? -1.4 : -1.5, hx = sim.dirx, hy = sim.diry, nFire = Math.round(dtReal * (s1On ? 900 : 500)), spread = 3 + vac * 45, sp0 = 70;
+      for (let i = 0; i < nFire; i++) {
+        const a = Math.random() * Math.PI * 2, rr = Math.random() * (s1On ? 1.0 : 0.7), sp = sp0 + Math.random() * 60;
+        const lx = -hy * Math.cos(a) * rr, ly = hx * Math.cos(a) * rr, lz = Math.sin(a) * rr;
+        const jx = (Math.random() - 0.5) * spread, jy = (Math.random() - 0.5) * spread, jz = (Math.random() - 0.5) * spread;
+        const along = Math.random() * dtReal * (sp + dr);
+        fireP.spawn(lx + hx * (nozzleOff - along), ly + hy * (nozzleOff - along), lz, -hx * sp + jx, -hy * sp + jy, jz, 0.25 + Math.random() * 0.35 + vac * 0.4, 2 + vac * 4, 6 + vac * 30, 0);
+      }
+      const nSmoke = Math.round(dtReal * 520 * Math.pow(dens, 0.4) * (s1On ? 1 : 0.5));
+      for (let i = 0; i < nSmoke; i++) {
+        const a = Math.random() * Math.PI * 2, side = groundEffect * (20 + Math.random() * 40); let back = 12 + Math.random() * 12;
+        const lz = Math.sin(a) * side, lx = -hy * Math.cos(a) * side, ly = hx * Math.cos(a) * side;
+        const sp = 6 + Math.random() * 10, gs = groundEffect * (15 + Math.random() * 25);
+        back += Math.random() * dtReal * (sp + dr);
+        smokeP.spawn(-hx * back * (1 - groundEffect * 0.85) + lx, -hy * back * (1 - groundEffect * 0.85) + ly, lz, -hx * sp + Math.cos(a) * gs * (-hy) + (Math.random() - 0.5) * 4, -hy * sp + Math.cos(a) * gs * hx + (Math.random() - 0.5) * 4, Math.sin(a) * gs + (Math.random() - 0.5) * 4, 3 + Math.random() * 4, 6, 32 + groundEffect * 30, 1);
+      }
+    }
+    const groundRel = 1.0 - alt;
+    fireP.update(dtReal, ddx, ddy, 0, base, _up.x, _up.y, _up.z, groundRel);
+    smokeP.update(dtReal, ddx, ddy, 0, base, _up.x, _up.y, _up.z, groundRel);
+  }
+
+  // ---- 카메라 ----
+  {
+    const camUp = _up; _e1.crossVectors(_z, camUp).normalize();
+    const aspectK = camera.aspect < 1 ? 1 / Math.sqrt(camera.aspect) : 1;
+    let lookAt = center, upVec = camUp;
+    if (cam.mode === 'cine') {
+      const wideStart = sim.phase === 'ORBIT' && sim.secoTime !== null && sim.t > sim.secoTime + 6;
+      cam.wideK += ((wideStart ? 1 : 0) - cam.wideK) * (1 - Math.exp(-dtReal * 0.5));
+      if (sim.phase === 'PRELAUNCH') { // 발사 전: 로켓 주위를 천천히 도는 소개 샷
+        cam.orbitYaw += dtReal * 0.07; const D = 75 * aspectK, p = 0.08;
+        const target = _v2.copy(_e1).multiplyScalar(Math.cos(cam.orbitYaw) * Math.cos(p)).addScaledVector(_z, Math.sin(cam.orbitYaw) * Math.cos(p)).addScaledVector(camUp, Math.sin(p)).multiplyScalar(D);
+        if (!cam.initialized) { cam.offset.copy(target); cam.initialized = true; } cam.offset.lerp(target, 1 - Math.exp(-dtReal * 3));
+        camera.position.copy(center).add(cam.offset);
+      } else if (sim.t < 9) { // 카운트다운~T+9: 지상 고정 카메라가 상승하는 로켓을 틸트업
+        _tmp.copy(TRIPOD); _tmp.x *= aspectK; _tmp.z *= aspectK;
+        camera.position.lerp(_tmp, 1 - Math.exp(-dtReal * 2.2)); cam.offset.copy(camera.position).sub(center);
+      } else if (cam.wideK > 0.001) { // 궤도: 지구 전체가 보이도록 서서히 후퇴, 지구 중심을 바라봄
+        const Dn = 90 * aspectK, Dw = 2.3e7 * aspectK; const D = Math.exp(Math.log(Dn) * (1 - cam.wideK) + Math.log(Dw) * cam.wideK);
+        const target = _v2.copy(_z).multiplyScalar(0.92).addScaledVector(camUp, 0.32).addScaledVector(_head, -0.2).normalize().multiplyScalar(D);
+        cam.offset.lerp(target, 1 - Math.exp(-dtReal * 2)); camera.position.copy(center).add(cam.offset);
+        if (cam.wideK > 0.3) { lookAt = _tmp.copy(EARTH_CENTER).lerp(center, 1 - Math.min(1, (cam.wideK - 0.3) / 0.5)); }
+      } else { // 상승 추적 샷
+        const D = (80 + Math.min(70, sim.speed * 0.012)) * aspectK;
+        const target = _v2.copy(_z).multiplyScalar(D * 0.95).addScaledVector(_head, -D * 0.22).addScaledVector(camUp, D * 0.12);
+        cam.offset.lerp(target, 1 - Math.exp(-dtReal * 2.2)); camera.position.copy(center).add(cam.offset);
+      }
+    } else {
+      const cp = Math.cos(cam.pitch), spn = Math.sin(cam.pitch);
+      cam.offset.copy(_e1).multiplyScalar(Math.cos(cam.yaw) * cp).addScaledVector(_z, Math.sin(cam.yaw) * cp).addScaledVector(camUp, spn).multiplyScalar(cam.dist);
+      camera.position.copy(center).add(cam.offset);
+    }
+    if (cam.shake > 0.001) { const s = cam.shake * (0.6 + 2 * Math.min(1, sim.thrust / 6e6) * dens); camera.position.x += (Math.random() - 0.5) * s; camera.position.y += (Math.random() - 0.5) * s; camera.position.z += (Math.random() - 0.5) * s; cam.shake *= Math.exp(-dtReal * 1.5); }
+    if (sim.thrust > 0 && dens > 0.05 && sim.t > 9) camera.position.addScaledVector(camUp, (Math.random() - 0.5) * 0.2 * dens);
+    const camAlt = camera.position.distanceTo(EARTH_CENTER) - C.R;
+    if (camAlt < 2.5) camera.position.addScaledVector(camUp, 2.5 - camAlt);
+    camera.up.copy(upVec); camera.lookAt(lookAt);
+    const camDist = camera.position.distanceTo(center);
+    camera.near = camDist > 1e5 ? 100 : 0.5; camera.updateProjectionMatrix();
+
+    // 하늘/안개/별/대기
+    const hC = Math.max(0, camAlt), skyA = 1 - THREE.MathUtils.smoothstep(hC, 22000, 70000);
+    skyMat.uniforms.uAlpha.value = skyA; skyMat.uniforms.uUp.value.copy(_tmp.copy(camera.position).sub(EARTH_CENTER).normalize()); skyDome.position.copy(camera.position);
+    stars.position.copy(camera.position); milky.position.copy(camera.position); brightStars.position.copy(camera.position);
+    stars.material.color.setScalar(1 - skyA); milky.material.color.setScalar((1 - skyA) * 0.9); for (const s of brightStars.children) s.material.color.setScalar(1 - skyA);
+    fogColor.copy(skyBlue).multiplyScalar(skyA); scene.fog.color.copy(fogColor); scene.fog.near = 2000; scene.fog.far = Math.min(1e9, 30000 * Math.exp(hC / 5000));
+    atmMat.uniforms.uAlpha.value = THREE.MathUtils.smoothstep(hC, 125000, 170000);
+    sunSprite.position.copy(camera.position).addScaledVector(SUN_DIR, 5e6);
+    sunView.copy(SUN_DIR).transformDirection(camera.matrixWorldInverse);
+    clouds.rotation.y += dtReal * 0.00002 * state.speed;
+    const far = camDist > 4000;
+    marker.visible = far; marker.position.copy(center); trailLine.visible = far && sim.trail.length >= 4;
+    if (trailLine.visible) { const p = trailGeo.attributes.position.array, n = Math.min(3000, sim.trail.length / 2), off = sim.trail.length / 2 - n; for (let i = 0; i < n; i++) { p[i * 3] = sim.trail[(off + i) * 2]; p[i * 3 + 1] = sim.trail[(off + i) * 2 + 1] - C.R; p[i * 3 + 2] = 0; } trailGeo.setDrawRange(0, n); trailGeo.attributes.position.needsUpdate = true; }
+    if (far && sim.phase === 'ORBIT') { if (now - lastOrbitCalc > 500) { updateOrbitLine(); lastOrbitCalc = now; } } else orbitLine.visible = false;
+  }
+
+  // ---- HUD ----
+  dom.tplus.textContent = fmtT(sim.phase === 'PRELAUNCH' ? -0 : sim.t);
+  const pn = PHASE_NAMES[sim.phase]; dom.phaseTxt.textContent = pn; dom.phaseBig.textContent = pn;
+  dom.alt.textContent = (Math.max(0, alt) / 1000).toFixed(alt < 10000 ? 2 : 1) + ' km';
+  dom.spd.textContent = Math.round(sim.speed * 3.6).toLocaleString('ko-KR') + ' km/h';
+  dom.mach.textContent = Number.isNaN(sim.mach) ? '— (진공)' : sim.mach.toFixed(2);
+  dom.fuelK.textContent = `남은 연료 (${sim.stage}단)`; const ff = sim.fuelFrac * 100; dom.fuel.textContent = ff.toFixed(1) + '%'; dom.fuelI.style.width = ff + '%';
+  dom.gamma.textContent = `${(90 - sim.pitch * 180 / Math.PI).toFixed(0)}° / ${(sim.gamma * 180 / Math.PI).toFixed(0)}°`;
+  dom.range.textContent = (sim.downrange / 1000).toFixed(sim.downrange < 100000 ? 1 : 0) + ' km';
+  const rp = sim.stats.rp, ra = sim.stats.ra; dom.apsis.textContent = (Number.isNaN(rp) || rp < -C.R * 0.9 ? '—' : (rp / 1000).toFixed(0) + ' km') + ' / ' + (Number.isNaN(ra) ? '—' : (ra / 1000).toFixed(0) + ' km');
+  dom.gee.textContent = (sim.phase === 'PRELAUNCH' || sim.t < 0 ? 1 : sim.accel / C.g0).toFixed(1) + ' G';
+  dom.mass.textContent = (sim.mass / 1000).toFixed(1) + ' t / ' + (sim.thrust / 1e6).toFixed(1) + ' MN';
+  dom.q.textContent = (sim.q / 1000).toFixed(1) + ' kPa';
+  if (sim.phase === 'COUNTDOWN' || sim.phase === 'IGNITION') { dom.countdown.style.opacity = 1; dom.countdown.textContent = Math.ceil(-sim.t); } else dom.countdown.style.opacity = 0;
+
+  renderer.render(scene, camera);
+}
+// 같은 출처의 AstroBox 화면만 시뮬레이션을 제어해요.
+let armed = false, reported = false;
+function send(type, data = {}) { if (window.parent !== window) window.parent.postMessage({ channel: 'astrobox-rocket', type, ...data }, location.origin); }
+window.addEventListener('message', e => {
+  if (e.origin !== location.origin || e.source !== window.parent || e.data?.channel !== 'astrobox-rocket') return;
+  if (e.data.type === 'reset') { doReset(); return; }
+  if (e.data.type === 'arm' && sim.phase === 'PRELAUNCH') {
+    const fuel = Number(e.data.fuel); if (!Number.isFinite(fuel) || fuel < 20 || fuel > 100) return;
+    sim.fuelScale = fuel / 100; sim.reset(); armed = true; $('btnLaunch').disabled = false; $('btnLaunch').textContent = '🚀 발사';
+  }
+  if (e.data.type === 'launch') doLaunch();
+});
+window.addEventListener('pagehide', () => { sfx.ctx?.close().catch(() => {}); renderer.dispose(); });
+send('ready');
+window.__app = { sim, scene, camera, cam, state, fireP, smokeP };
+$('loading').style.opacity = 0; setTimeout(() => $('loading').remove(), 500);
+requestAnimationFrame(t => { state.last = t; frame(t); });
+</script>
+</body>
+</html>

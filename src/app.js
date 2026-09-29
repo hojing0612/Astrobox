@@ -1,3 +1,4 @@
+import { mountRocket } from './rocket.js';
 // AstroBox 앱 — 해시 라우팅: #home · #m/<id> · #report · #stars · #timeline
 import { MISSIONS, byId } from './missions.js';
 import { OrbitView } from './render.js';
@@ -30,6 +31,7 @@ function renderHome() {
     <a class="primary" style="display:inline-block;width:auto;padding:12px 26px;text-decoration:none" href="#m/m1">첫 미션 시작 →</a></section>
   <div class="wrap"><div class="grid">
     ${MISSIONS.map((m) => { const s = sum.byMission[m.id]; const locked = !unlock.isUnlocked(m.id); return `<a class="card ${locked ? 'locked' : ''}" href="#m/${m.id}"><div class="n">${locked ? '🔒' : m.order}</div><h3>${esc(m.title)}</h3><p>${esc(m.intro)}</p><div class="tag">${locked ? '미션 팩 · 부모님이 열어주면 시작' : s ? `실험 ${s.experiments}회 · 카드 ${s.cards}장` : '아직 안 해봤어요'} · ${esc(m.concept)}</div></a>`; }).join('')}
+    <a class="card" href="#rocket"><div class="n" style="background:#ffb454">🚀</div><h3>로켓 발사 탐구</h3><p>연료량을 바꾸면 지구 궤도에 들어갈 수 있을까요? 예측하고 직접 발사해요.</p><div class="tag">3D 발사 · 단 분리 · 발사 탐구 카드</div></a>
     <a class="card" href="#lab"><div class="n" style="background:#ffb454">⚗</div><h3>자유 실험실</h3><p>예측 없이 마음껏. 발사각·속력·고도·지구 질량을 바꾸고 속력·중력 화살표를 보며 놀기</p><div class="tag">PhET처럼 자유롭게 · 관찰 문장은 코드가 써줘요</div></a>
     <a class="card" href="#stars"><div class="n" style="background:#5aa9ff">★</div><h3>별의 생애</h3><p>질량을 바꾸면 별의 운명이 어떻게 달라질까? 갈색왜성부터 블랙홀까지</p><div class="tag">보기 · 실험은 아니에요</div></a>
     <a class="card" href="#timeline"><div class="n" style="background:#5aa9ff">∞</div><h3>우주 138억 년</h3><p>빅뱅부터 지금까지, 시간을 당겨 보기</p><div class="tag">보기 · 실험은 아니에요</div></a>
@@ -188,7 +190,7 @@ async function renderReport() {
     <h2 style="margin-top:18px">설명이 이렇게 달라졌어요</h2>
     ${s.cards.length ? s.cards.slice().reverse().map((c) => `<div class="law"><div class="m">${esc(c.title)} · ${new Date(c.t).toLocaleDateString('ko-KR')}</div><div class="r"><div class="k">처음 생각</div><div>${esc(c.initial)}</div></div><div class="r"><div class="k">관찰</div><div>${esc(c.observation)}</div></div><div class="r"><div class="k">다시 설명</div><div>${esc(c.explanation)}</div></div>${c.next ? `<div class="r"><div class="k">다음 확인</div><div>${esc(c.next)}</div></div>` : ''}</div>`).join('') : '<div class="empty">아직 카드가 없어요</div>'}
     <h2 style="margin-top:18px">미션별</h2>
-    ${s.missions.map((id) => { const m = byId(id); const b = s.byMission[id]; return `<div class="bar"><span>${esc(m?.title || id)}</span><div class="track"><i style="width:${Math.min(100, b.experiments * 10)}%"></i></div><span>실험 ${b.experiments}</span></div>`; }).join('')}
+    ${s.missions.map((id) => { const m = byId(id); const b = s.byMission[id]; return `<div class="bar"><span>${esc(m?.title || (id === 'rocket' ? '로켓 발사 탐구' : id))}</span><div class="track"><i style="width:${Math.min(100, b.experiments * 10)}%"></i></div><span>실험 ${b.experiments}</span></div>`; }).join('')}
     <div id="parentBox"></div>
     <div class="next" style="margin-top:18px"><div class="t">다음 미션</div><div class="m"><div class="ic">🚀</div><div><div class="n">${esc((MISSIONS.find((m) => !s.byMission[m.id]) || MISSIONS[0]).title)}</div><div class="s">아이 화면의 「부모님께 요청하기」에서 이어져요</div></div></div><button class="primary" onclick="location.hash='#home'">다음 미션 열기 (데모 · 결제 없음)</button></div>`}
     <p class="small muted" style="margin-top:16px">기록 지우기: <button class="secondary" id="reset" style="padding:4px 10px">초기화</button></p>
@@ -288,9 +290,13 @@ function renderTimeline() {
 }
 
 // ---------------- ROUTER
+let disposeRocket = null;
+function renderRocket() { setNav('rocket'); disposeRocket = mountRocket(root); }
 function route() {
+  if (disposeRocket) { disposeRocket(); disposeRocket = null; }
   const h = location.hash.replace(/^#/, '') || 'home';
   if (h.startsWith('m/')) return renderMission(h.slice(2));
+  if (h === 'rocket') return renderRocket();
   if (h === 'lab') return renderLab();
   if (h === 'account') return renderAccount();
   if (h === 'report') return renderReport();

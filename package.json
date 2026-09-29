@@ -3,6 +3,6 @@
   "version": "1.2.0",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "node dev.js" },
+  "scripts": { "dev": "node dev.js", "test": "node --test tests/*.test.mjs" },
   "dependencies": { "postgres": "^3.4.9" }
 }
