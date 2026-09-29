@@ -45,3 +45,12 @@ PhET는 자유 조작·벡터·경로는 있지만 목표·판정·해설이 없
 - 판정은 코드, 코치는 되묻기만. 해설은 아이가 시도한 뒤에 연다.
 - 리포트는 아이가 쓴 문장과 판정 로그만 근거. 아이 화면에 가격·타이머·반복 재촉 없음, 결제는 부모 화면에서만.
 - 모형의 근사(공기 저항 없음, 별 진화 경계값 등)는 화면에 표시.
+
+## 이미지 출처
+
+- 지구 낮: NASA Visible Earth, Blue Marble Next Generation (2004-12, topo+bathy) — `assets/tex/earth-day-*.jpg`
+- 지구 밤(도시 불빛): NASA Earth Observatory, Black Marble 2016 — `assets/tex/earth-night-2k.jpg`
+- 구름: NASA Visible Earth 구름 합성 — `assets/tex/clouds-2k.jpg`
+- 달: NASA SVS CGI Moon Kit, LRO LROC WAC 컬러 모자이크 — `assets/tex/moon-2k.jpg`
+
+NASA 이미지는 공개 자료(저작권 없음)이지만 NASA 로고·보증 표현은 쓰지 않는다. 원본은 각각 5400×2700 / 3600×1800 / 2048×1024 / 2048×1024이며 웹용으로 4K·2K로 줄였다(총 2.1MB). 낮/밤 경계·도시 불빛·바다 반사는 `src/render3d.js`의 셰이더가 만든다.
