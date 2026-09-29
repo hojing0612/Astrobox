@@ -8,12 +8,15 @@ export function db() {
 }
 export async function ensure() {
   const s = db(); if (!s) return null;
-  if (!ready) ready = (async () => {
-    await s`create schema if not exists astrobox`;
-    await s`create table if not exists astrobox.families (id bigserial primary key, code text unique not null, pin_hash text not null, child_name text not null, created_at timestamptz default now())`;
-    await s`create table if not exists astrobox.events (id bigserial primary key, family_id bigint references astrobox.families(id) on delete cascade, client_id text not null, t bigint not null, type text not null, data jsonb not null default '{}', unique (family_id, client_id))`;
-    await s`create table if not exists astrobox.cards (id bigserial primary key, family_id bigint references astrobox.families(id) on delete cascade, client_id text not null, t bigint not null, data jsonb not null default '{}', unique (family_id, client_id))`;
-    await s`create index if not exists astrobox_events_family on astrobox.events(family_id, t)`;
+  if (!ready) ready = (async () => { const run = async (q) => { try { await q; } catch (e) { if (!/already exists|duplicate/i.test(String(e.message))) throw e; } };
+    await run(s`create schema if not exists astrobox`);
+    await run(s`create table if not exists astrobox.families (id bigserial primary key, code text unique not null, pin_hash text not null, child_name text not null, created_at timestamptz default now())`);
+    await run(s`create table if not exists astrobox.events (id bigserial primary key, family_id bigint references astrobox.families(id) on delete cascade, client_id text not null, t bigint not null, type text not null, data jsonb not null default '{}', unique (family_id, client_id))`);
+    await run(s`create table if not exists astrobox.cards (id bigserial primary key, family_id bigint references astrobox.families(id) on delete cascade, client_id text not null, t bigint not null, data jsonb not null default '{}', unique (family_id, client_id))`);
+    await run(s`create index if not exists astrobox_events_family on astrobox.events(family_id, t)`);
+    await run(s`create table if not exists astrobox.requests (id bigserial primary key, family_id bigint references astrobox.families(id) on delete cascade, mission text not null, next_mission text, status text not null default 'pending', t bigint not null, decided_at bigint)`);
+    await run(s`create table if not exists astrobox.entitlements (id bigserial primary key, family_id bigint references astrobox.families(id) on delete cascade, pack text not null, source text not null, t bigint not null, unique (family_id, pack))`);
+    await run(s`create table if not exists astrobox.orders (id bigserial primary key, family_id bigint references astrobox.families(id) on delete cascade, pack text not null, amount int not null, currency text not null default 'KRW', provider text not null, status text not null, t bigint not null)`);
   })();
   await ready; return s;
 }

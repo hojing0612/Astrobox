@@ -4,6 +4,7 @@ import { OrbitView } from './render.js';
 import { askCoach, ladder } from './coach.js';
 import * as store from './store.js';
 import * as account from './account.js';
+import * as unlock from './unlock.js';
 import { starFate, TIMELINE } from './content.js';
 import * as P from './physics.js';
 
@@ -23,7 +24,7 @@ function renderHome() {
   <section class="hero"><h1>Astro<span>Box</span></h1><p>질문 하나로 시작하는 나만의 우주 실험 — 예측하고, 하나만 바꿔 보고, 내 말로 설명한다</p>
     <a class="primary" style="display:inline-block;width:auto;padding:12px 26px;text-decoration:none" href="#m/m1">첫 미션 시작 →</a></section>
   <div class="wrap"><div class="grid">
-    ${MISSIONS.map((m) => { const s = sum.byMission[m.id]; return `<a class="card" href="#m/${m.id}"><div class="n">${m.order}</div><h3>${esc(m.title)}</h3><p>${esc(m.intro)}</p><div class="tag">${s ? `실험 ${s.experiments}회 · 카드 ${s.cards}장` : '아직 안 해봤어요'} · ${esc(m.concept)}</div></a>`; }).join('')}
+    ${MISSIONS.map((m) => { const s = sum.byMission[m.id]; const locked = !unlock.isUnlocked(m.id); return `<a class="card ${locked ? 'locked' : ''}" href="#m/${m.id}"><div class="n">${locked ? '🔒' : m.order}</div><h3>${esc(m.title)}</h3><p>${esc(m.intro)}</p><div class="tag">${locked ? '미션 팩 · 부모님이 열어주면 시작' : s ? `실험 ${s.experiments}회 · 카드 ${s.cards}장` : '아직 안 해봤어요'} · ${esc(m.concept)}</div></a>`; }).join('')}
     <a class="card" href="#lab"><div class="n" style="background:#ffb454">⚗</div><h3>자유 실험실</h3><p>예측 없이 마음껏. 발사각·속력·고도·지구 질량을 바꾸고 속력·중력 화살표를 보며 놀기</p><div class="tag">PhET처럼 자유롭게 · 관찰 문장은 코드가 써줘요</div></a>
     <a class="card" href="#stars"><div class="n" style="background:#5aa9ff">★</div><h3>별의 생애</h3><p>질량을 바꾸면 별의 운명이 어떻게 달라질까? 갈색왜성부터 블랙홀까지</p><div class="tag">보기 · 실험은 아니에요</div></a>
     <a class="card" href="#timeline"><div class="n" style="background:#5aa9ff">∞</div><h3>우주 138억 년</h3><p>빅뱅부터 지금까지, 시간을 당겨 보기</p><div class="tag">보기 · 실험은 아니에요</div></a>
@@ -34,9 +35,11 @@ function renderHome() {
 }
 
 // ---------------- MISSION
-function renderMission(id) {
+async function renderMission(id) {
   const m = byId(id); if (!m) { location.hash = '#home'; return; }
   setNav('');
+  if (!unlock.isUnlocked(m.id)) { await unlock.refresh(); }
+  if (!unlock.isUnlocked(m.id)) { renderLocked(m); return; }
   const V = m.variable;
   const state = { choice: null, reason: '', value: V.default, result: null, judged: null, history: [], stage: 'predict', transfer: null, experiments: 0, turns: 0, explained: false };
   root.innerHTML = `
@@ -157,7 +160,8 @@ function renderMission(id) {
       $('#tresult').innerHTML = `<b style="color:${ok ? '#46d49a' : '#ffb454'}">${ok ? '새 조건에서도 맞췄어요 — 개념이 옮겨 갔어요' : '새 조건에서는 달랐어요 — 왜 그런지 화면을 봐요'}</b><br>${esc(res.observation)}`;
       store.log('transfer', { mission: m.id, correct: ok, choice: b.dataset.id }); if (ok) toast('법칙 카드 획득: ' + m.lawCard); }, { once: true });
   }
-  $('#askParent').addEventListener('click', () => { store.log('request', { mission: m.id, next: next?.id }); toast('부모님 화면으로 요청을 보냈어요 (데모)'); });
+  $('#askParent').addEventListener('click', async () => { if (!next) { toast('마지막 미션이에요'); return; } if (unlock.isUnlocked(next.id)) { toast('이미 열려 있어요! 홈에서 시작해요'); return; } store.log('request', { mission: m.id, next: next.id }); const r = await unlock.requestNext(m.id, next.id); $('#askParent').textContent = '요청 보냄 · 부모님 확인 기다리는 중'; $('#askParent').disabled = true; toast(r.where === 'server' ? '부모님 화면으로 요청을 보냈어요' : '부모님 화면(이 기기)에 요청을 남겼어요'); });
+  if (next && unlock.isUnlocked(next.id)) { $('#askParent').textContent = '다음 미션 열려 있음 → 홈에서 시작'; }
 }
 function logToSlider(V, v) { return Math.round(1000 * (Math.log(v) - Math.log(V.min)) / (Math.log(V.max) - Math.log(V.min))); }
 function sliderToLog(V, s) { const v = Math.exp(Math.log(V.min) + (s / 1000) * (Math.log(V.max) - Math.log(V.min))); return Math.round(v / V.step) * V.step; }
@@ -179,10 +183,29 @@ async function renderReport() {
     ${s.cards.length ? s.cards.slice().reverse().map((c) => `<div class="law"><div class="m">${esc(c.title)} · ${new Date(c.t).toLocaleDateString('ko-KR')}</div><div class="r"><div class="k">처음 생각</div><div>${esc(c.initial)}</div></div><div class="r"><div class="k">관찰</div><div>${esc(c.observation)}</div></div><div class="r"><div class="k">다시 설명</div><div>${esc(c.explanation)}</div></div>${c.next ? `<div class="r"><div class="k">다음 확인</div><div>${esc(c.next)}</div></div>` : ''}</div>`).join('') : '<div class="empty">아직 카드가 없어요</div>'}
     <h2 style="margin-top:18px">미션별</h2>
     ${s.missions.map((id) => { const m = byId(id); const b = s.byMission[id]; return `<div class="bar"><span>${esc(m?.title || id)}</span><div class="track"><i style="width:${Math.min(100, b.experiments * 10)}%"></i></div><span>실험 ${b.experiments}</span></div>`; }).join('')}
+    <div id="parentBox"></div>
     <div class="next" style="margin-top:18px"><div class="t">다음 미션</div><div class="m"><div class="ic">🚀</div><div><div class="n">${esc((MISSIONS.find((m) => !s.byMission[m.id]) || MISSIONS[0]).title)}</div><div class="s">아이 화면의 「부모님께 요청하기」에서 이어져요</div></div></div><button class="primary" onclick="location.hash='#home'">다음 미션 열기 (데모 · 결제 없음)</button></div>`}
     <p class="small muted" style="margin-top:16px">기록 지우기: <button class="secondary" id="reset" style="padding:4px 10px">초기화</button></p>
     </div></div>`;
   $('#reset')?.addEventListener('click', () => { if (confirm('이 브라우저의 기록을 모두 지울까요?')) { store.reset(); renderReport(); } });
+  renderParentBox();
+}
+async function renderParentBox() {
+  const box = $('#parentBox'); if (!box) return;
+  const r = await unlock.fetchRequests(); const pending = r.requests.filter((x) => x.status === 'pending'); const pk = unlock.PACKS['pack-1']; const has = unlock.isUnlocked('m2');
+  box.innerHTML = `<h2 style="margin-top:18px">아이의 요청 ${pending.length ? `<span style="color:var(--accent)">· ${pending.length}건</span>` : ''}</h2>
+    ${pending.length ? pending.map((q) => `<div class="law"><div class="m">${esc(byId(q.mission)?.title || q.mission)} 를 마치고 → <b>${esc(byId(q.next)?.title || q.next)}</b> 를 열어 달래요 · ${new Date(q.t).toLocaleString('ko-KR')}</div>
+      <div style="display:flex;gap:8px;margin-top:8px"><button class="primary" data-approve="${q.id}" style="width:auto;padding:8px 14px">${has ? '열어주기' : '미션 팩 열고 승인'}</button><button class="secondary" data-decline="${q.id}">나중에</button></div></div>`).join('') : '<div class="empty small">아직 요청이 없어요. 아이가 미션을 마치면 「부모님께 요청하기」로 여기에 와요.</div>'}
+    <div class="law" style="margin-top:12px"><div class="m">${esc(pk.title)} ${has ? '· ✅ 열림' : ''}</div><div class="r"><div class="k">포함</div><div>${pk.missions.map((id) => esc(byId(id)?.title || id)).join(' · ')} + 코치 되묻기 + 이해 기록</div></div><div class="r"><div class="k">가격</div><div>${esc(pk.note)} — 실제 청구 없음. 결제 방식은 검증 뒤 붙여요</div></div>${has ? '' : `<button class="primary" id="buyPack" style="margin-top:8px">미션 팩 열기 (데모 결제)</button>`}</div>
+    <p class="small muted">${r.where === 'server' ? '☁️ 요청·권한은 가족 계정 서버에 저장돼 아이 기기에도 바로 반영돼요' : '이 기기 안에서만 동작해요 — 가족 계정으로 로그인하면 아이 기기와 연결돼요'}</p>`;
+  box.querySelectorAll('[data-approve]').forEach((b) => b.addEventListener('click', async () => { if (!has) await unlock.checkout('pack-1'); await unlock.decide(b.dataset.approve.match(/^\d+$/) ? Number(b.dataset.approve) : b.dataset.approve, 'approve'); store.log('approve', { by: 'parent' }); toast('열어줬어요'); renderParentBox(); }));
+  box.querySelectorAll('[data-decline]').forEach((b) => b.addEventListener('click', async () => { await unlock.decide(b.dataset.decline.match(/^\d+$/) ? Number(b.dataset.decline) : b.dataset.decline, 'decline'); renderParentBox(); }));
+  $('#buyPack')?.addEventListener('click', async () => { const o = await unlock.checkout('pack-1'); store.log('order', { pack: 'pack-1', where: o.where }); toast('미션 팩이 열렸어요 (데모 · 청구 없음)'); renderParentBox(); });
+}
+function renderLocked(m) {
+  root.innerHTML = `<div class="wrap" style="max-width:640px"><div class="panel"><div class="eyebrow">🔒 미션 ${m.order} · 미션 팩</div><h1>${esc(m.title)}</h1><p class="muted">${esc(m.intro)}</p>
+    <div class="law"><div class="m">이 미션은 미션 팩에 들어 있어요</div><div class="r"><div class="k">아이</div><div>미션 1을 마치고 「부모님께 요청하기」를 눌러요</div></div><div class="r"><div class="k">부모님</div><div>부모 리포트에서 요청을 보고 열어줘요. 가격·시간 제한 없음</div></div></div>
+    <div style="display:flex;gap:8px;margin-top:12px"><a class="primary" style="text-decoration:none;text-align:center" href="#m/m1">미션 1로</a><a class="secondary" style="text-decoration:none;text-align:center" href="#report">부모 리포트</a></div></div></div>`;
 }
 
 // ---------------- CONTENT: 별의 생애
