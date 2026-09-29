@@ -165,3 +165,23 @@ export function freeStart(h, v, deg = 0) {
   const a = deg * Math.PI / 180; // 접선 방향(+y)에서 바깥(+x)으로 기울임
   return { x: R_EARTH + h, y: 0, vx: v * Math.sin(a), vy: v * Math.cos(a) };
 }
+
+/** 미션4 스윙바이: 달 도착 궤도(Δv 3.10)에서 달의 도착 시각을 offsetHours만큼 어긋나게.
+ *  +면 달이 앞서가 우주선이 달 뒤쪽을 지남(가속), −면 앞쪽을 지남(감속). 판정은 지구 기준 비에너지 변화. */
+export function swingBy(offsetHours, dv = 3.10, h = 400) {
+  const r1 = R_EARTH + h; const v0 = circularSpeed(r1) + dv;
+  const base = moonShot(dv, h);
+  const phase0 = base.phase0 + OMEGA_MOON * offsetHours * 3600;
+  const sim = propagate(r1, 0, 0, v0, { tMax: 10 * 86400, withMoon: { phase0 }, maxPoints: 6000, stopOnCrash: true, stopOnMoon: true });
+  const eps0 = elements(r1, 0, 0, v0).eps; const [x, y, vx, vy] = sim.final; const eps1 = elements(x, y, vx, vy).eps;
+  const dEps = eps1 - eps0;
+  // 같은 거리(달 거리)에서의 지구 기준 속력으로 환산해 보여주기: v = sqrt(2(eps + mu/r))
+  const vAt = (eps) => { const q = 2 * (eps + MU_EARTH / D_MOON); return q > 0 ? Math.sqrt(q) : 0; };
+  let kind;
+  if (sim.reachedMoon || sim.minMoonD < R_MOON + 300) kind = 'impact';   // 달 표면 300 km 안은 '너무 가까움'
+  else if (sim.minMoonD > MOON_SOI) kind = 'miss';
+  else if (dEps > 0.05) kind = 'boost';
+  else if (dEps < -0.05) kind = 'slow';
+  else kind = 'neutral';
+  return { kind, sim, phase0, eps0, eps1, dEps, vBefore: vAt(eps0), vAfter: vAt(eps1), escapes: eps1 >= 0, minMoonD: sim.minMoonD, side: offsetHours > 0 ? 'behind' : offsetHours < 0 ? 'front' : 'center' };
+}

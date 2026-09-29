@@ -137,6 +137,54 @@ export const MISSIONS = [
       look: '슬라이더를 3.05와 3.08 사이에서 아주 조금씩 움직여 봐. 어디서 "못 미침"이 "달 도착"으로 바뀌는지.' }),
     lawCard: '달 거리에 딱 닿는 타원(호만 전이)이 연료를 가장 아낀다 — 세게 밟으면 빨리 가지만 제동에 더 쓴다',
   },
+  {
+    id: 'm4', order: 4, title: '달을 스쳐 지나며 속도 얻기 (스윙바이)',
+    intro: '달로 가는 우주선이 달을 스쳐 지나가요. 달의 앞쪽을 지날까, 뒤쪽을 지날까? 어느 쪽이 더 빨라질까요?',
+    concept: '중력 도움(스윙바이) · 운동량 주고받기',
+    variable: { key: 'offset', label: '달 통과 시각 차이', unit: '시간', min: -12, max: 12, step: 0.5, default: 6 },
+    locked: ['출발 400 km · Δv 3.10 km/s', '달은 공전 중', '지구+달 중력만'],
+    choices: [
+      { id: 'A', text: '달의 앞쪽(달이 가는 방향 앞)을 지나면 빨라진다' },
+      { id: 'B', text: '달의 뒤쪽(달이 지나간 자리)을 지나면 빨라진다' },
+      { id: 'C', text: '어느 쪽을 지나든 속력은 같다' },
+    ],
+    correct: 'B',
+    run(offset) {
+      const s = P.swingBy(offset);
+      const km2 = (x) => Math.round(x).toLocaleString('ko-KR');
+      const sideLabel = { behind: '달의 뒤쪽', front: '달의 앞쪽', center: '달 한가운데' }[s.side];
+      let obs;
+      if (s.kind === 'impact') obs = `${offset > 0 ? '+' : ''}${offset}시간이면 달 표면에서 ${km2(Math.max(0, s.minMoonD - P.R_MOON))} km — 너무 가까워 부딪히거나 스칠 수 없어요`;
+      else if (s.kind === 'miss') obs = `${offset > 0 ? '+' : ''}${offset}시간이면 달에서 ${km2(s.minMoonD)} km나 떨어져 지나가 달의 중력을 거의 못 느꼈어요`;
+      else obs = `${sideLabel}을 ${km2(s.minMoonD)} km 거리로 지났어요. 지구 기준 속력(달 거리에서) ${s.vBefore.toFixed(2)} → ${s.vAfter.toFixed(2)} km/s${s.escapes ? ' — 지구를 벗어날 만큼 빨라졌어요' : ''}`;
+      return { kind: s.kind, kindLabel: { boost: '빨라짐', slow: '느려짐', impact: '너무 가까움', miss: '너무 멀어짐', neutral: '거의 그대로' }[s.kind], sim: s.sim, swing: s, observation: obs, scale: 'moon', moon: { phase0: s.phase0 } };
+    },
+    judge(choice, result) {
+      const k = result.kind;
+      if (k === 'impact' || k === 'miss' || k === 'neutral') return { verdict: 'inconclusive', text: k === 'impact' ? '너무 가까워요 — 시각 차이를 더 벌려 봐요' : k === 'miss' ? '너무 멀어요 — 시각 차이를 줄여 봐요' : '변화가 작아요 — 조금 더 벌려 봐요' };
+      const behindBoost = result.swing.side === 'behind' && k === 'boost';
+      const frontSlow = result.swing.side === 'front' && k === 'slow';
+      if (choice === 'B') return behindBoost ? { verdict: 'supported', text: '예측대로 — 뒤쪽을 지나니 빨라졌어요' } : frontSlow ? { verdict: 'supported', text: '예측대로 — 앞쪽을 지나니 오히려 느려졌어요' } : { verdict: 'inconclusive', text: '이 값은 판정이 애매해요. 다른 시각 차이로' };
+      if (choice === 'A') return behindBoost || frontSlow ? { verdict: 'refuted', text: '예측과 반대로 — 앞쪽은 느려지고 뒤쪽이 빨라져요' } : { verdict: 'inconclusive', text: '판정이 애매해요. 다른 값으로' };
+      return { verdict: 'refuted', text: '예측과 반대로 — 지나는 쪽에 따라 속력이 달라져요' };
+    },
+    coachRules(result) {
+      if (result.kind === 'impact') return '너무 가까이 갔어. 달의 앞이나 뒤로 비켜 가려면 뭘 바꿔야 할까?';
+      if (result.kind === 'miss') return '달이 너무 멀리 있었네. 달 가까이 지나가려면 시각 차이를 어느 쪽으로?';
+      if (result.kind === 'boost') return '빨라졌지! 우주선이 얻은 속력은 어디서 왔을까? 달은 어떻게 됐을까?';
+      if (result.kind === 'slow') return '느려졌어. 달이 가는 방향과 우주선이 지나간 쪽을 그림에서 비교해 봐.';
+      return '거의 안 변했네. 달에 더 가까이 가면 어떻게 될까?';
+    },
+    hints: ['달이 움직이는 방향(화살표)과 우주선이 달의 어느 쪽을 지나는지를 봐.', '달이 우주선을 끌어당길 때, 달이 우주선을 "끌고 가는" 쪽이 뒤쪽이야. 끌려가면 어느 쪽으로 빨라질까?'],
+    solution: (r) => ({ answer: 'B', title: '달의 뒤쪽을 지나면 달이 우주선을 끌고 가서 빨라진다',
+      why: ['달은 초속 1 km로 지구를 돈다. 우주선이 달 뒤쪽을 지나면 달의 중력이 우주선을 달이 가는 방향으로 끌어당겨 지구 기준 속력이 커진다.', '앞쪽을 지나면 반대로 달이 가는 방향의 반대로 당겨져 느려진다. 달 기준으로는 들어온 속력과 나간 속력이 같지만, 지구 기준으로는 달의 움직임이 더해지거나 빠진다.', '우주선이 얻은 만큼 달은 아주 조금 느려진다. 달이 워낙 무거워 티가 안 날 뿐이다. 보이저·주노 탐사선이 목성으로 이렇게 갔다.'],
+      numbers: `지금 값: 달 거리에서의 지구 기준 속력 ${r.swing.vBefore.toFixed(2)} → ${r.swing.vAfter.toFixed(2)} km/s (${r.swing.dEps > 0 ? '+' : ''}${r.swing.dEps.toFixed(2)} km²/s² 에너지). 3~5시간 뒤쪽 통과면 지구를 벗어날 만큼 빨라진다.`,
+      look: '시각 차이를 +3, +6, +12로 바꿔 봐. 가까울수록 많이 얻고, 멀수록 조금 얻어. −6으로 바꾸면 반대가 돼.' }),
+    transfer: { prompt: '목성으로 가는 탐사선이 지구를 스윙바이할 때, 지구의 뒤쪽을 지나면 태양 기준으로 빨라질까요?', altitude: null, value: null,
+      run: () => { const s = P.swingBy(5); return { kind: s.kind, sim: s.sim, swing: s, scale: 'moon', moon: { phase0: s.phase0 }, observation: '같은 원리예요 — 지구가 태양을 도는 방향 뒤쪽을 지나면 지구가 탐사선을 끌고 가서 태양 기준 속력이 커져요. 보이저 2호가 목성·토성·천왕성·해왕성을 이렇게 돌았어요' }; },
+      choices: [{ id: 'A', text: '빨라진다' }, { id: 'B', text: '느려진다' }, { id: 'C', text: '같다' }], correct: 'A' },
+    lawCard: '움직이는 천체의 뒤쪽을 지나면 그 천체가 나를 끌고 가서 빨라진다 — 연료 없이 얻는 속력',
+  },
 ];
 
 export const byId = (id) => MISSIONS.find((m) => m.id === id);

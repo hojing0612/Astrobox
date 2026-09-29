@@ -3,6 +3,7 @@ import { MISSIONS, byId } from './missions.js';
 import { OrbitView } from './render.js';
 import { askCoach, ladder } from './coach.js';
 import * as store from './store.js';
+import * as account from './account.js';
 import { starFate, TIMELINE } from './content.js';
 import * as P from './physics.js';
 
@@ -26,6 +27,7 @@ function renderHome() {
     <a class="card" href="#lab"><div class="n" style="background:#ffb454">⚗</div><h3>자유 실험실</h3><p>예측 없이 마음껏. 발사각·속력·고도·지구 질량을 바꾸고 속력·중력 화살표를 보며 놀기</p><div class="tag">PhET처럼 자유롭게 · 관찰 문장은 코드가 써줘요</div></a>
     <a class="card" href="#stars"><div class="n" style="background:#5aa9ff">★</div><h3>별의 생애</h3><p>질량을 바꾸면 별의 운명이 어떻게 달라질까? 갈색왜성부터 블랙홀까지</p><div class="tag">보기 · 실험은 아니에요</div></a>
     <a class="card" href="#timeline"><div class="n" style="background:#5aa9ff">∞</div><h3>우주 138억 년</h3><p>빅뱅부터 지금까지, 시간을 당겨 보기</p><div class="tag">보기 · 실험은 아니에요</div></a>
+    <a class="card" href="#account"><div class="n" style="background:#5aa9ff">🔑</div><h3>가족 계정</h3><p>코드 6자리 + PIN 4자리로 기록을 서버에 저장하고 다른 기기에서도 이어가요. 이메일·실명 없음</p><div class="tag" id="accTag">${account.current() ? `${esc(account.current().childName)} · ${account.current().code} 로그인됨` : '로그인 안 됨 · 지금은 이 브라우저에만 저장'}</div></a>
     <a class="card" href="#report"><div class="n" style="background:#46d49a">👪</div><h3>부모 리포트</h3><p>아이가 한 활동과 설명이 어떻게 달라졌는지</p><div class="tag">이 브라우저에 저장된 기록만</div></a>
   </div>
   <p class="small muted" style="margin-top:18px">시뮬레이션은 지구·달 중력만 있는 단순 모형이에요(공기 저항 없음). 판정은 물리 계산이 하고, 코치는 답을 알려주지 않아요.</p></div>`;
@@ -161,17 +163,18 @@ function logToSlider(V, v) { return Math.round(1000 * (Math.log(v) - Math.log(V.
 function sliderToLog(V, s) { const v = Math.exp(Math.log(V.min) + (s / 1000) * (Math.log(V.max) - Math.log(V.min))); return Math.round(v / V.step) * V.step; }
 
 // ---------------- REPORT
-function renderReport() {
-  setNav('report'); const s = store.summary();
+async function renderReport() {
+  setNav('report'); if (account.current()) await store.sync(); const s = store.summary();
   const tot = (k) => Object.values(s.byMission).reduce((a, b) => a + (b[k] || 0), 0);
   const exp = tot('experiments'), coachN = tot('coach'), judged = tot('judged'), sup = tot('supported'), tr = tot('transfer'), trOk = tot('transferOk');
   root.innerHTML = `<div class="wrap" style="max-width:760px">
-    <div class="panel"><div class="eyebrow">부모 리포트 · 이 브라우저에 저장된 기록</div><h1>우주 탐구 기록</h1><p class="muted small">기록은 아이가 직접 쓴 문장과 코드의 판정 로그만 근거로 해요. 숫자는 전부 실제 활동에서 나온 값이에요.</p>
+    <div class="panel"><div class="eyebrow">부모 리포트 · 이 브라우저에 저장된 기록</div><h1>우주 탐구 기록</h1><p class="muted small">기록은 아이가 직접 쓴 문장과 코드의 판정 로그만 근거로 해요. 숫자는 전부 실제 활동에서 나온 값이에요. ${account.current() ? `☁️ ${esc(account.current().childName)}(${account.current().code}) 계정으로 서버에 저장됨${store.syncState.status === 'offline' ? ' — 지금은 서버 연결이 안 돼 이 기기 기록만 보여요' : ''}` : '이 브라우저에만 저장됨 — <a href="#account">가족 계정</a>을 만들면 다른 기기에서도 보여요'}</p>
     ${exp === 0 ? `<div class="empty">아직 기록이 없어요. 첫 미션을 해 보면 여기에 쌓여요.</div>` : `
     <div class="kpis"><div class="kpi"><b>${s.missions.length}</b><span>시작한 미션</span></div><div class="kpi"><b>${exp}</b><span>직접 실험</span></div><div class="kpi"><b>${s.cards.length}</b><span>설명 카드</span></div></div>
     <div class="bar"><span>예측이 맞은 실험</span><div class="track"><i style="width:${judged ? Math.round(100 * sup / judged) : 0}%"></i></div><span>${sup} / ${judged}</span></div>
     <div class="bar"><span>새 조건에서 설명</span><div class="track"><i style="width:${tr ? Math.round(100 * trOk / tr) : 0}%"></i></div><span>${trOk} / ${tr}</span></div>
     <div class="bar"><span>코치 되묻기</span><div class="track"><i style="width:${Math.min(100, coachN * 8)}%;background:#5aa9ff"></i></div><span>${coachN}회</span></div>
+    <div class="bar"><span>힌트 · 해설 열람</span><div class="track"><i style="width:${Math.min(100, (tot('hints') + tot('solutions')) * 12)}%;background:#ffb454"></i></div><span>${tot('hints')} · ${tot('solutions')}</span></div>
     <h2 style="margin-top:18px">설명이 이렇게 달라졌어요</h2>
     ${s.cards.length ? s.cards.slice().reverse().map((c) => `<div class="law"><div class="m">${esc(c.title)} · ${new Date(c.t).toLocaleDateString('ko-KR')}</div><div class="r"><div class="k">처음 생각</div><div>${esc(c.initial)}</div></div><div class="r"><div class="k">관찰</div><div>${esc(c.observation)}</div></div><div class="r"><div class="k">다시 설명</div><div>${esc(c.explanation)}</div></div>${c.next ? `<div class="r"><div class="k">다음 확인</div><div>${esc(c.next)}</div></div>` : ''}</div>`).join('') : '<div class="empty">아직 카드가 없어요</div>'}
     <h2 style="margin-top:18px">미션별</h2>
@@ -216,6 +219,7 @@ function route() {
   const h = location.hash.replace(/^#/, '') || 'home';
   if (h.startsWith('m/')) return renderMission(h.slice(2));
   if (h === 'lab') return renderLab();
+  if (h === 'account') return renderAccount();
   if (h === 'report') return renderReport();
   if (h === 'stars') return renderStars();
   if (h === 'timeline') return renderTimeline();
@@ -252,3 +256,23 @@ function renderLab() {
   $('#vecs').addEventListener('change', (e) => { view.vectors = e.target.checked; view.draw(); });
   run(); store.log('lab', {});
 }
+
+// ---------------- ACCOUNT
+async function renderAccount() {
+  setNav('account'); const acc = account.current();
+  const ok = await account.available();
+  root.innerHTML = `<div class="wrap" style="max-width:640px"><div class="panel"><div class="eyebrow">가족 계정 · 코드 + PIN</div><h1>기록을 서버에 저장하기</h1>
+    <p class="muted small">이메일·실명·전화번호를 받지 않아요. 가족 코드 6자리와 PIN 4자리만으로 로그인하고, 아이 이름은 별명이면 충분해요. 로그인하지 않아도 이 브라우저에는 기록이 남아요.</p>
+    ${!ok ? '<div class="empty">지금은 서버가 연결돼 있지 않아요. 기록은 이 브라우저에만 저장돼요.</div>' : ''}
+    ${acc ? `<div class="law"><div class="m">로그인됨</div><div class="r"><div class="k">아이</div><div>${esc(acc.childName)}</div></div><div class="r"><div class="k">가족 코드</div><div><b style="font-size:1.3rem;letter-spacing:.12em">${esc(acc.code)}</b> — 다른 기기에서 이 코드와 PIN으로 로그인</div></div></div>
+      <div style="display:flex;gap:8px"><button class="primary" id="syncNow">지금 동기화</button><button class="secondary" id="logout">로그아웃</button></div><p class="small muted" id="syncMsg"></p>` : `
+      <div class="content"><section class="law"><div class="m">새로 만들기</div><div class="r"><div class="k">아이 별명</div><input id="cName" class="reason" style="min-height:0;padding:8px" maxlength="12" placeholder="예: 지우"></div><div class="r"><div class="k">PIN 4자리</div><input id="cPin" class="reason" style="min-height:0;padding:8px" inputmode="numeric" maxlength="4" placeholder="숫자 4자리"></div><button class="primary" id="createBtn" ${ok ? '' : 'disabled'}>가족 코드 만들기</button></section>
+      <section class="law"><div class="m">이미 코드가 있어요</div><div class="r"><div class="k">가족 코드</div><input id="lCode" class="reason" style="min-height:0;padding:8px;text-transform:uppercase" maxlength="6" placeholder="6자리"></div><div class="r"><div class="k">PIN</div><input id="lPin" class="reason" style="min-height:0;padding:8px" inputmode="numeric" maxlength="4" placeholder="숫자 4자리"></div><button class="secondary" id="loginBtn" style="width:100%" ${ok ? '' : 'disabled'}>로그인</button></section></div><p class="small muted" id="accMsg"></p>`}
+    </div></div>`;
+  const msg = (t) => { const el = $('#accMsg') || $('#syncMsg'); if (el) el.textContent = t; };
+  $('#createBtn')?.addEventListener('click', async () => { try { const d = await account.create($('#cName').value, $('#cPin').value); await store.sync(); toast(`가족 코드 ${d.code} — 꼭 적어 두세요`); renderAccount(); } catch (e) { msg(e.message); } });
+  $('#loginBtn')?.addEventListener('click', async () => { try { await account.login($('#lCode').value, $('#lPin').value); await store.sync(); toast('로그인했어요. 기록을 합쳤어요'); renderAccount(); } catch (e) { msg(e.message); } });
+  $('#logout')?.addEventListener('click', () => { account.logout(); toast('로그아웃했어요. 이 브라우저 기록은 남아 있어요'); renderAccount(); });
+  $('#syncNow')?.addEventListener('click', async () => { const r = await store.sync(); msg(r ? `동기화 완료 · 실험 ${r.events.filter((e) => e.type === 'experiment').length}건 · 카드 ${r.cards.length}장` : `동기화 실패: ${store.syncState.error || store.syncState.status}`); });
+}
+if (account.current()) store.sync().catch(() => {});
