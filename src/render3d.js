@@ -1,6 +1,9 @@
 // 3D 렌더러 — Three.js. 물리는 physics.js 그대로(궤도면 = XZ). 지구·달·별하늘·펭귄 우주선·빛나는 궤적·화살표·카메라 회전.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
 import * as P from './physics.js';
 
 const KM = 1 / 1000; // 1 단위 = 1,000 km
@@ -44,8 +47,8 @@ export class OrbitView3D {
     this.moonRing = new THREE.Mesh(new THREE.RingGeometry(P.D_MOON * KM - 1.2, P.D_MOON * KM + 1.2, 256), new THREE.MeshBasicMaterial({ color: 0xc7d2e5, transparent: true, opacity: 0.18, side: THREE.DoubleSide })); this.moonRing.rotation.x = -Math.PI / 2; this.moonRing.visible = false; this.scene.add(this.moonRing);
     this.soi = new THREE.Mesh(new THREE.SphereGeometry(P.MOON_SOI * KM, 24, 24), new THREE.MeshBasicMaterial({ color: 0xe5e7eb, wireframe: true, transparent: true, opacity: 0.08 })); this.soi.visible = false; this.scene.add(this.soi);
     // 궤적(전체 흐림 + 지나온 빛)
-    this.pathAll = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x91a0bd, transparent: true, opacity: 0.25 })); this.scene.add(this.pathAll);
-    this.pathDone = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xff6237, linewidth: 2 })); this.scene.add(this.pathDone);
+    this.matAll = new LineMaterial({ color: 0x91a0bd, linewidth: 1.5, transparent: true, opacity: 0.35, worldUnits: false }); this.matDone = new LineMaterial({ color: 0xff6237, linewidth: 4, worldUnits: false });
+    this.pathAll = new Line2(new LineGeometry(), this.matAll); this.pathDone = new Line2(new LineGeometry(), this.matDone); this.scene.add(this.pathAll, this.pathDone);
     // 펭귄 우주선(스프라이트) + 반짝 후광
     const tex = new THREE.TextureLoader().load('assets/penguin-256.png'); tex.colorSpace = THREE.SRGBColorSpace;
     this.ship = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true })); this.scene.add(this.ship);
@@ -54,18 +57,18 @@ export class OrbitView3D {
     this.resize(); window.addEventListener('resize', () => this.resize());
     this.last = performance.now(); this.loop();
   }
-  resize() { const r = this.c.getBoundingClientRect(); const w = Math.max(1, r.width), h = Math.max(1, r.height); this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); }
+  resize() { const r = this.c.getBoundingClientRect(); const w = Math.max(1, r.width), h = Math.max(1, r.height); this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); const pr = this.renderer.getPixelRatio(); this.matAll.resolution.set(w * pr, h * pr); this.matDone.resolution.set(w * pr, h * pr); }
   show(result, play = true) {
     this.result = result; this.simTime = 0; this.playing = play; this.speed = Math.max(30, result.sim.t / 12);
-    const pts = result.sim.pts; const arr = new Float32Array(pts.length * 3); for (let i = 0; i < pts.length; i++) { arr[i * 3] = pts[i][0] * KM; arr[i * 3 + 1] = 0; arr[i * 3 + 2] = -pts[i][1] * KM; }
-    this.pathAll.geometry.dispose(); this.pathAll.geometry = new THREE.BufferGeometry(); this.pathAll.geometry.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-    this.doneArr = new Float32Array(arr); this.pathDone.geometry.dispose(); this.pathDone.geometry = new THREE.BufferGeometry(); this.pathDone.geometry.setAttribute('position', new THREE.BufferAttribute(this.doneArr, 3)); this.pathDone.geometry.setDrawRange(0, 1);
+    const pts = result.sim.pts; const arr = []; for (let i = 0; i < pts.length; i++) arr.push(pts[i][0] * KM, 0, -pts[i][1] * KM);
+    this.pathAll.geometry.dispose(); this.pathAll.geometry = new LineGeometry(); this.pathAll.geometry.setPositions(arr);
+    this.pathDone.geometry.dispose(); this.pathDone.geometry = new LineGeometry(); this.pathDone.geometry.setPositions(arr); this.pathDone.geometry.instanceCount = 1; this.nSeg = pts.length - 1;
     const col = { crash: 0xff6b6b, orbit: 0xff6237, escape: 0x5aa9ff, short: 0xffb454, arrive: 0x46d49a, overshoot: 0x5aa9ff, boost: 0x46d49a, slow: 0xffb454, impact: 0xff6b6b, miss: 0x91a0bd, neutral: 0x91a0bd }[result.kind] || 0xff6237;
-    this.pathDone.material.color.setHex(col); this.glow.material.color.setHex(col);
+    this.matDone.color.setHex(col); this.glow.material.color.setHex(col);
     const moonScale = result.scale === 'moon'; this.moon.visible = this.moonRing.visible = this.soi.visible = moonScale;
     // 카메라 거리: 궤도 범위에 맞춤
     let m = 0; for (const p of pts) m = Math.max(m, Math.hypot(p[0], p[1])); const ext = moonScale ? P.D_MOON * 1.15 : Math.max(P.R_EARTH * 1.6, m * 1.15); if (result.kind === 'escape') { /* 그대로 */ }
-    const d = Math.min(2500, ext * KM * 2.2); this.camera.position.set(d * 0.35, d * 0.55, d * 0.8); this.controls.target.set(0, 0, 0); this.controls.minDistance = Math.max(8, ext * KM * 0.3);
+    const d = Math.min(2500, ext * KM * (moonScale ? 2.2 : 3.4)); this.camera.position.set(d * 0.3, d * 0.5, d * 0.85); this.controls.target.set(0, 0, 0); this.controls.minDistance = Math.max(8, ext * KM * 0.3);
     const sc = Math.max(0.9, ext * KM * 0.06); this.ship.scale.set(sc, sc, 1); this.glow.scale.set(sc * 1.9, sc * 1.9, 1); const al = ext * KM * 0.14; this.arrowLen = al;
     const es = moonScale ? 3.5 : 1; this.earth.scale.setScalar(es); this.clouds.scale.setScalar(es); this.atmo.scale.setScalar(es); this.atmoRing.visible = !moonScale;
     if (!play) this.draw();
@@ -78,7 +81,7 @@ export class OrbitView3D {
     if (this.result) {
       const st = this.stateAt(this.simTime); const x = st.x * KM, z = -st.y * KM;
       this.ship.position.set(x, 0.001, z); this.glow.position.copy(this.ship.position); this.glow.material.opacity = 0.25 + 0.15 * Math.sin(performance.now() / 180);
-      this.pathDone.geometry.setDrawRange(0, Math.max(2, st.idx + 1));
+      this.pathDone.geometry.instanceCount = Math.max(1, Math.min(this.nSeg, st.idx));
       if (this.result.scale === 'moon' && this.result.moon) { const th = P.OMEGA_MOON * this.simTime + this.result.moon.phase0; this.moon.position.set(P.D_MOON * KM * Math.cos(th), 0, -P.D_MOON * KM * Math.sin(th)); this.soi.position.copy(this.moon.position); }
       const vm = Math.hypot(st.vx, st.vy) || 1; const r = Math.hypot(st.x, st.y) || 1; const gm = (this.result.muScale || 1) * P.MU_EARTH / (r * r); const g0 = P.MU_EARTH / 6771 ** 2;
       this.vArrow.visible = this.gArrow.visible = this.vectors;
