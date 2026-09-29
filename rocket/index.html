@@ -6,91 +6,56 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AstroBox 로켓 발사 탐구</title>
 <style>
-  :root { --panel: rgba(8, 12, 20, 0.72); --line: rgba(255,255,255,0.12); --fg: #e8eef7; --dim: #8fa0b8; --acc: #ffb347; --ok: #6ee7a8; }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--fg); font-family: -apple-system, "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; }
-  canvas { display: block; }
-  #ui { position: fixed; inset: 0; pointer-events: none; }
-  .panel { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-  #hud { left: 16px; top: 16px; padding: 12px 14px; min-width: 236px; font-variant-numeric: tabular-nums; }
-  #hud .row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; gap: 16px; }
-  #hud .row.sub { padding-top: 6px; margin-top: 4px; border-top: 1px solid var(--line); }
-  #hud .k { color: var(--dim); font-size: 12px; letter-spacing: 0.02em; }
-  #hud .v { font-size: 17px; font-weight: 600; }
-  #hud .row.small .v { font-size: 13px; font-weight: 500; color: #c8d3e3; }
-  #tplus { font-size: 26px; font-weight: 700; letter-spacing: 0.02em; }
-  #fuelbar { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.12); margin-top: 4px; overflow: hidden; }
-  #fuelbar > i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #ff7a45, #ffb347); transition: width 0.15s linear; }
-  #phase { left: 50%; top: 16px; transform: translateX(-50%); padding: 8px 18px; font-size: 15px; font-weight: 600; letter-spacing: 0.04em; white-space: nowrap; }
-  #phase b { color: var(--acc); }
-  #toasts { position: absolute; right: 16px; top: 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
-  .toast { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--acc); border-radius: 10px; padding: 10px 14px; font-size: 14px; min-width: 200px; animation: toastin 0.25s ease-out; backdrop-filter: blur(10px); }
-  .toast .t { color: var(--dim); font-size: 11px; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
-  .toast.out { animation: toastout 0.4s ease-in forwards; }
-  @keyframes toastin { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
-  @keyframes toastout { to { opacity: 0; transform: translateX(16px); } }
-  #controls { left: 50%; bottom: 18px; transform: translateX(-50%); padding: 10px 12px; display: flex; gap: 14px; align-items: center; pointer-events: auto; flex-wrap: wrap; justify-content: center; }
-  .group { display: flex; gap: 4px; align-items: center; }
-  .group .lbl { color: var(--dim); font-size: 11px; margin-right: 4px; }
-  button { appearance: none; border: 1px solid var(--line); background: rgba(255,255,255,0.06); color: var(--fg); font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 8px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
-  button:hover { background: rgba(255,255,255,0.12); }
-  button.on { background: rgba(255,179,71,0.18); border-color: var(--acc); color: #ffd79a; }
-  button.primary { background: #ff7a45; border-color: #ff7a45; color: #fff; font-weight: 700; padding: 8px 18px; }
-  button.primary:hover { background: #ff8f60; }
-  button.primary:disabled { opacity: 0.45; cursor: default; }
-  #hint { position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%); color: var(--dim); font-size: 12px; white-space: nowrap; }
-  #countdown { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); font-size: 96px; font-weight: 800; color: #fff; text-shadow: 0 0 30px rgba(255,150,60,0.8); opacity: 0; transition: opacity 0.2s; font-variant-numeric: tabular-nums; }
-  #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; color: var(--dim); font-size: 14px; z-index: 10; transition: opacity 0.4s; }
-  @media (max-width: 640px) { #hud { min-width: 190px; padding: 8px 10px; } #hud .v { font-size: 14px; } #tplus { font-size: 20px; } #phase { font-size: 12px; padding: 6px 12px; } #hint { display: none; } }
-  #btnDetails { display: none; pointer-events: auto; }
-  @media (max-width: 640px) {
-    #hud { left: 8px; top: 44px; min-width: 160px; max-width: 210px; }
-    #hud .row.small, #hud .row:nth-of-type(n+5), #fuelbar { display: none; }
-    #hud.expanded .row, #hud.expanded #fuelbar { display: flex; }
-    #btnDetails { display: block; font-size: 11px; padding: 4px 6px; margin-bottom: 4px; }
-    #phase { top: 8px; }
-    #controls { bottom: 8px; width: calc(100% - 16px); gap: 6px; padding: 8px; }
-    #controls button { font-size: 11px; padding: 6px 8px; }
-    #toasts { top: auto; bottom: 160px; right: 8px; max-width: calc(100% - 16px); }
-    .toast { font-size: 12px; min-width: 0; }
-  }
+  :root { --panel: rgba(8,12,20,.83); --line: rgba(255,255,255,.16); --fg: #e8eef7; --dim: #afbdd2; --acc: #ffb347; }
+  * { box-sizing: border-box; } html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--fg); font-family: -apple-system, "Pretendard", "Apple SD Gothic Neo", system-ui, sans-serif; } canvas { display: block; }
+  #ui { position: fixed; inset: 0; pointer-events: none; } [hidden] { display: none !important; }
+  .panel { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(10px); }
+  #phase { top: 12px; left: 12px; padding: 8px 12px; font-size: 12px; } #phase b { color: var(--acc); }
+  #hud { left: 12px; right: 12px; bottom: 12px; max-width: 480px; margin: auto; padding: 10px 14px; font-variant-numeric: tabular-nums; }
+  #basicStats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; text-align: center; }
+  .k { color: var(--dim); font-size: 11px; } .v { font-size: 16px; font-weight: 700; }
+  #basicStats .k, #basicStats .v { display: block; } #basicStats .v { margin-top: 4px; }
+  #fuelbar { height: 3px; background: #ffffff30; margin-top: 8px; border-radius: 2px; overflow: hidden; } #fuelI { display: block; height: 100%; background: var(--acc); width: 100%; }
+  #hudExtra { display: none; max-height: calc(100vh - 145px); overflow-y: auto; pointer-events: auto; padding-bottom: 12px; margin-bottom: 8px; border-bottom: 1px solid var(--line); }
+  #hud.expanded #hudExtra { display: block; } #hudExtra .row { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; } #hudExtra .v { font-size: 12px; }
+  #viewTools { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; pointer-events: auto; }
+  button { border: 1px solid var(--line); background: var(--panel); color: var(--fg); font: inherit; font-size: 11px; padding: 8px; min-height: 36px; border-radius: 10px; cursor: pointer; } button:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; } button.on { border-color: var(--acc); color: var(--acc); }
+  #controls { margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap; } #hint { color: var(--dim); font-size: 11px; margin: 10px 0 0; }
+  #toasts { position: absolute; top: 58px; left: 12px; right: 12px; display: flex; justify-content: center; }
+  .toast { border-radius: 12px; padding: 10px 14px; font-size: 14px; background: var(--panel); border: 1px solid var(--line); text-align: center; max-width: 400px; animation: toastin .2s ease-out; } .toast .t { display: none; } .toast.out { opacity: 0; transition: opacity .3s; }
+  @keyframes toastin { from { opacity: 0; } to { opacity: 1; } }
+  #countdown { position: absolute; left: 50%; top: 42%; transform: translate(-50%,-50%); font-size: clamp(48px,15vh,96px); font-weight: 800; text-shadow: 0 0 30px #ff963c; opacity: 0; }
+  #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; text-align: center; background: #080e1d; color: var(--dim); font-size: 13px; z-index: 10; }
+  body[data-flight=prepare] #hud, body[data-flight=prepare] #btnDetails { display: none; }
+  body[data-flight=result] #hud:not(.expanded), body[data-flight=result] #toasts { display: none; }
+  @media(max-width:640px) { #phase { top: 8px; left: 8px; font-size: 11px; padding: 8px; } #hud { left: 8px; right: 8px; bottom: 8px; padding: 8px; } .v { font-size: 13px; } .k { font-size: 10px; } .toast { font-size: 12px; padding: 8px 10px; } #viewTools button { padding: 6px; } }
+  @media(prefers-reduced-motion:reduce) { .toast { animation: none; } }
 </style>
 </head>
-<body>
+<body data-flight="prepare">
 <div id="ui">
+  <div class="panel" id="phase"><b id="phaseBig">발사 대기</b></div>
+  <div id="viewTools"><button id="btnDetails" aria-expanded="false" aria-controls="hudExtra">자세히</button><button id="btnSound" aria-label="소리 끄기">🔊 소리</button></div>
   <div class="panel" id="hud">
-    <button id="btnDetails" aria-expanded="false">비행 정보 펼치기</button><div class="row"><span class="k">경과 시간</span><span class="v" id="tplus">T−00:00</span></div>
-    <div class="row"><span class="k">현재 단계</span><span class="v" id="phaseTxt">발사 대기</span></div>
-    <div class="row sub"><span class="k">고도</span><span class="v" id="alt">0.00 km</span></div>
-    <div class="row"><span class="k">속도</span><span class="v" id="spd">0 km/h</span></div>
-    <div class="row"><span class="k">마하</span><span class="v" id="mach">0.00</span></div>
-    <div class="row"><span class="k" id="fuelK">남은 연료 (1단)</span><span class="v" id="fuel">100.0%</span></div>
+    <div id="hudExtra">
+      <div class="row"><span class="k">경과 시간</span><span class="v" id="tplus">T−00:00</span></div>
+      <div class="row"><span class="k">현재 단계</span><span class="v" id="phaseTxt">발사 대기</span></div>
+      <div class="row"><span class="k">마하</span><span class="v" id="mach">0.00</span></div>
+      <div class="row"><span class="k">피치각 / 비행경로각</span><span class="v" id="gamma">90° / 90°</span></div>
+      <div class="row"><span class="k">다운레인지</span><span class="v" id="range">0 km</span></div>
+      <div class="row"><span class="k">근지점 / 원지점</span><span class="v" id="apsis">— / —</span></div>
+      <div class="row"><span class="k">가속도</span><span class="v" id="gee">1.0 G</span></div>
+      <div class="row"><span class="k">총 질량 / 추력</span><span class="v" id="mass">— / —</span></div>
+      <div class="row"><span class="k">동압 (Q)</span><span class="v" id="q">0 kPa</span></div>
+      <div id="controls"><button data-cam="cine" class="on">로켓 따라가기</button><button data-cam="free">자유롭게 보기</button></div>
+      <p id="hint">드래그: 회전 · 휠: 확대 · 1~3: 배속 · C: 카메라 · R: 처음부터</p>
+    </div>
+    <div id="basicStats"><div><span class="k">높이</span><span class="v" id="alt">0.00 km</span></div><div><span class="k">속도</span><span class="v" id="spd">0 km/h</span></div><div><span class="k" id="fuelK">1단 연료</span><span class="v" id="fuel">100.0%</span></div></div>
     <div id="fuelbar"><i id="fuelI"></i></div>
-    <div class="row sub small"><span class="k">피치각 / 비행경로각</span><span class="v" id="gamma">90° / 90°</span></div>
-    <div class="row small"><span class="k">다운레인지</span><span class="v" id="range">0 km</span></div>
-    <div class="row small"><span class="k">근지점 / 원지점</span><span class="v" id="apsis">— / —</span></div>
-    <div class="row small"><span class="k">가속도</span><span class="v" id="gee">1.0 G</span></div>
-    <div class="row small"><span class="k">총 질량 / 추력</span><span class="v" id="mass">— / —</span></div>
-    <div class="row small"><span class="k">동압 (Q)</span><span class="v" id="q">0 kPa</span></div>
   </div>
-  <div class="panel" id="phase">단계 <b id="phaseBig">발사 대기</b></div>
-  <div id="toasts"></div>
-  <div id="countdown"></div>
-  <div id="hint">드래그: 회전 · 휠: 줌 (자유 카메라) · 1~3: 배속 · C: 카메라 · 스페이스: 발사 · R: 리셋</div>
-  <div class="panel" id="controls">
-    <div class="group">
-      <button class="primary" id="btnLaunch" disabled>먼저 예측해요</button>
-      <button id="btnReset">리셋</button>
-    </div>
-    <div class="group"><span class="lbl">배속</span>
-      <button data-speed="1" class="on">1×</button><button data-speed="10">10×</button><button data-speed="100">100×</button>
-    </div>
-    <div class="group"><span class="lbl">카메라</span>
-      <button data-cam="cine" class="on">로켓 추적 (시네마틱)</button><button data-cam="free">자유 회전</button>
-    </div>
-    <div class="group"><button id="btnSound">🔊 사운드</button></div>
-  </div>
-  <div id="loading">지구·로켓 텍스처 생성 중…</div>
+  <div id="toasts"></div><div id="countdown"></div>
+  <button id="btnLaunch" hidden disabled>발사</button><button id="btnReset" hidden>처음부터</button>
+  <div id="loading">지구와 로켓을 만들고 있어요…</div>
 </div>
 
 <script>window.addEventListener('error', e => { const l = document.getElementById('loading'); if (l) l.textContent = '오류: ' + e.message; });</script>
@@ -100,6 +65,7 @@
 <script type="module">
 const THREE = await import('three').catch(error => { document.getElementById('loading').textContent = '3D 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.'; throw error; });
 import { C, ROCKET, PHASE_NAMES, airDensity, Sim } from '../src/rocket-physics.js';
+import { ROCKET_MILESTONES } from '../src/content.js';
 
 /* ============================================================
    0. 실제 지구 육지 마스크 (1024×512, RLE·base64, 코드 내장)
@@ -580,30 +546,30 @@ const fireP = new Particles(4000, true), smokeP = new Particles(3000, false);
 /* ============================================================
    5. 카메라 · 입력 · UI
    ============================================================ */
-const cam = { mode: 'cine', yaw: Math.PI / 2, pitch: 0.12, dist: 110, offset: new THREE.Vector3(), shake: 0, initialized: false, orbitYaw: 0.9, wideK: 0 };
+const cam = { mode: 'cine', yaw: Math.PI / 2, pitch: 0.12, dist: 110, offset: new THREE.Vector3(), shake: 0, initialized: false, orbitYaw: 2.0, wideK: 0 };
 const state = { speed: 1, last: performance.now(), simAccum: 0 };
 const $ = id => document.getElementById(id);
 const dom = { tplus: $('tplus'), phaseTxt: $('phaseTxt'), phaseBig: $('phaseBig'), alt: $('alt'), spd: $('spd'), mach: $('mach'), fuel: $('fuel'), fuelK: $('fuelK'), fuelI: $('fuelI'), apsis: $('apsis'), gee: $('gee'), mass: $('mass'), q: $('q'), gamma: $('gamma'), range: $('range'), toasts: $('toasts'), countdown: $('countdown') };
 
-function toast(text, t) { const el = document.createElement('div'); el.className = 'toast'; el.innerHTML = `<div class="t">${fmtT(t)}</div>${text}`; dom.toasts.appendChild(el); setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 4500); }
+function toast(text, t) { dom.toasts.replaceChildren(); const el = document.createElement('div'); el.className = 'toast'; el.innerHTML = `<div class="t">${fmtT(t)}</div>${text}`; dom.toasts.appendChild(el); setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 4500); }
 function fmtT(t) { const s = Math.abs(t), m = Math.floor(s / 60), ss = Math.floor(s % 60); return `T${t < 0 ? '−' : '+'}${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`; }
-function setSpeed(s) { state.speed = s; document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', +b.dataset.speed === s)); }
+function setSpeed(s, manual = true) { if (manual) guidedSpeed = false; state.speed = s; send('speed', { speed: s, guided: !manual }); }
 function setCam(m) { if (m === 'free' && cam.mode !== 'free') { // 현재 시점에서 자연스럽게 이어받기
     const off = cam.offset; const up = _up; const e1 = new THREE.Vector3().crossVectors(_z, up).normalize(); cam.dist = Math.max(25, off.length()); const o = off.clone().normalize(); cam.pitch = Math.asin(Math.max(-1, Math.min(1, o.dot(up)))); cam.yaw = Math.atan2(o.dot(_z), o.dot(e1)); }
   cam.mode = m; document.querySelectorAll('[data-cam]').forEach(b => b.classList.toggle('on', b.dataset.cam === m)); }
-function doLaunch() { if (!armed || sim.phase !== 'PRELAUNCH') return; try { sfx.init(); sfx.ctx.resume().catch(() => {}); } catch {} sim.launch(); armed = false; $('btnLaunch').disabled = true; send('started'); }
+function doLaunch() { if (!armed || sim.phase !== 'PRELAUNCH') return; try { sfx.init(); sfx.ctx.resume().catch(() => {}); } catch {} sim.launch(); document.body.dataset.flight = 'flight'; armed = false; $('btnLaunch').disabled = true; send('started'); }
 function doReset() {
-  sim.reset(); armed = false; reported = false; state.simAccum = 0; $('btnLaunch').disabled = true; $('btnLaunch').textContent = '먼저 예측해요'; send('reset'); dom.toasts.innerHTML = '';
+  sim.reset(); armed = false; reported = false; guidedSpeed = true; state.speed = 1; state.simAccum = 0; setCam('cine'); document.body.dataset.flight = 'prepare'; $('hud').classList.remove('expanded'); $('btnDetails').setAttribute('aria-expanded', 'false'); $('btnDetails').textContent = '자세히'; send('speed', { speed: 10, guided: true }); $('btnLaunch').disabled = true; $('btnLaunch').textContent = '먼저 예측해요'; send('reset'); dom.toasts.innerHTML = '';
   stage1.position.set(0, 0, 0); stage1.quaternion.identity(); rocket.add(stage1); stage1.visible = true; stage1.userData.glow.material.opacity = 0;
   stage2.position.y = ROCKET.s1.length; for (const g of stage2.userData.fairings) g.visible = true;
   for (const f of detachedFairings) scene.remove(f.group); detachedFairings.length = 0;
   fireP.n = 0; smokeP.n = 0; trailGeo.setDrawRange(0, 0); orbitLine.visible = false; cam.shake = 0; cam.initialized = false; cam.wideK = 0; sfx.setEngine(0, 1);
 }
-$('btnDetails').onclick = () => { const expanded = $('hud').classList.toggle('expanded'); $('btnDetails').setAttribute('aria-expanded', expanded); $('btnDetails').textContent = expanded ? '비행 정보 접기' : '비행 정보 펼치기'; };
+$('btnDetails').onclick = () => { const expanded = $('hud').classList.toggle('expanded'); $('btnDetails').setAttribute('aria-expanded', expanded); $('btnDetails').textContent = expanded ? '접기' : '자세히'; };
 $('btnLaunch').onclick = doLaunch; $('btnReset').onclick = doReset;
 document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => setSpeed(+b.dataset.speed));
 document.querySelectorAll('[data-cam]').forEach(b => b.onclick = () => setCam(b.dataset.cam));
-$('btnSound').onclick = () => { sfx.enabled = !sfx.enabled; $('btnSound').textContent = sfx.enabled ? '🔊 사운드' : '🔇 음소거'; if (sfx.enabled) { sfx.init(); sfx.ctx.resume(); } };
+$('btnSound').onclick = () => { sfx.enabled = !sfx.enabled; $('btnSound').textContent = sfx.enabled ? '🔊 소리' : '🔇 소리'; $('btnSound').setAttribute('aria-label', sfx.enabled ? '소리 끄기' : '소리 켜기'); if (sfx.enabled) { try { sfx.init(); sfx.ctx.resume().catch(() => {}); } catch {} } };
 window.addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); doLaunch(); }
   if (e.key === '1') setSpeed(1); if (e.key === '2') setSpeed(10); if (e.key === '3') setSpeed(100);
@@ -636,7 +602,7 @@ const TRIPOD = new THREE.Vector3(75, 3, 230); // 지상 고정 카메라(발사 
 
 function handleEvents() {
   for (const ev of sim.events) {
-    toast(ev.text, ev.t);
+    if (Object.hasOwn(ROCKET_MILESTONES, ev.type)) { toast(ROCKET_MILESTONES[ev.type], ev.t); send('milestone', { event: ev.type }); }
     if (ev.type === 'ignition') sfx.beep(660, 0.15, 0.2);
     if (ev.type === 'liftoff') { cam.shake = 1.2; sfx.beep(990, 0.2, 0.2); }
     if (ev.type === 'sep') {
@@ -678,11 +644,12 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dtReal = Math.min(0.1, (now - state.last) / 1000); state.last = now;
   if (renderer.domElement.clientWidth !== window.innerWidth || renderer.domElement.clientHeight !== window.innerHeight) { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+  if (guidedSpeed && sim.t >= 9 && state.speed === 1) setSpeed(10, false);
   const simDt = 0.02; state.simAccum += dtReal * state.speed;
   let steps = 0; while (state.simAccum >= simDt && steps < 400) { sim.step(simDt); state.simAccum -= simDt; steps++; }
   if (steps >= 400) state.simAccum = 0;
   handleEvents();
-  if (!reported && ['ORBIT', 'FAIL', 'CRASH'].includes(sim.phase)) { reported = true; send('result', { phase: sim.phase, time: sim.t, altitude: sim.alt / 1000, perigee: sim.stats.rp / 1000, apogee: sim.stats.ra / 1000, fuel: sim.fuelScale * 100 }); }
+  if (!reported && ['ORBIT', 'FAIL', 'CRASH'].includes(sim.phase)) { reported = true; document.body.dataset.flight = 'result'; send('result', { phase: sim.phase, time: sim.t, altitude: sim.alt / 1000, perigee: sim.stats.rp / 1000, apogee: sim.stats.ra / 1000, fuel: sim.fuelScale * 100 }); }
 
   // ---- 로켓 자세/위치 ----
   const base = to3(sim.x, sim.y); _head.set(sim.dirx, sim.diry, 0);
@@ -741,8 +708,8 @@ function frame(now) {
     if (cam.mode === 'cine') {
       const wideStart = sim.phase === 'ORBIT' && sim.secoTime !== null && sim.t > sim.secoTime + 6;
       cam.wideK += ((wideStart ? 1 : 0) - cam.wideK) * (1 - Math.exp(-dtReal * 0.5));
-      if (sim.phase === 'PRELAUNCH') { // 발사 전: 로켓 주위를 천천히 도는 소개 샷
-        cam.orbitYaw += dtReal * 0.07; const D = 75 * aspectK, p = 0.08;
+      if (sim.phase === 'PRELAUNCH') { // 발사 전: 타워가 로켓을 가리지 않는 가까운 소개 샷
+        cam.orbitYaw = 2.4 + Math.sin(now * 0.00012) * 0.12; const D = 58 * aspectK, p = 0.08;
         const target = _v2.copy(_e1).multiplyScalar(Math.cos(cam.orbitYaw) * Math.cos(p)).addScaledVector(_z, Math.sin(cam.orbitYaw) * Math.cos(p)).addScaledVector(camUp, Math.sin(p)).multiplyScalar(D);
         if (!cam.initialized) { cam.offset.copy(target); cam.initialized = true; } cam.offset.lerp(target, 1 - Math.exp(-dtReal * 3));
         camera.position.copy(center).add(cam.offset);
@@ -794,7 +761,7 @@ function frame(now) {
   dom.alt.textContent = (Math.max(0, alt) / 1000).toFixed(alt < 10000 ? 2 : 1) + ' km';
   dom.spd.textContent = Math.round(sim.speed * 3.6).toLocaleString('ko-KR') + ' km/h';
   dom.mach.textContent = Number.isNaN(sim.mach) ? '— (진공)' : sim.mach.toFixed(2);
-  dom.fuelK.textContent = `남은 연료 (${sim.stage}단)`; const ff = sim.fuelFrac * 100; dom.fuel.textContent = ff.toFixed(1) + '%'; dom.fuelI.style.width = ff + '%';
+  dom.fuelK.textContent = `${sim.stage}단 연료`; const ff = sim.fuelFrac * 100; dom.fuel.textContent = ff.toFixed(1) + '%'; dom.fuelI.style.width = ff + '%';
   dom.gamma.textContent = `${(90 - sim.pitch * 180 / Math.PI).toFixed(0)}° / ${(sim.gamma * 180 / Math.PI).toFixed(0)}°`;
   dom.range.textContent = (sim.downrange / 1000).toFixed(sim.downrange < 100000 ? 1 : 0) + ' km';
   const rp = sim.stats.rp, ra = sim.stats.ra; dom.apsis.textContent = (Number.isNaN(rp) || rp < -C.R * 0.9 ? '—' : (rp / 1000).toFixed(0) + ' km') + ' / ' + (Number.isNaN(ra) ? '—' : (ra / 1000).toFixed(0) + ' km');
@@ -806,10 +773,11 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 // 같은 출처의 AstroBox 화면만 시뮬레이션을 제어해요.
-let armed = false, reported = false;
+let armed = false, reported = false, guidedSpeed = true;
 function send(type, data = {}) { if (window.parent !== window) window.parent.postMessage({ channel: 'astrobox-rocket', type, ...data }, location.origin); }
 window.addEventListener('message', e => {
   if (e.origin !== location.origin || e.source !== window.parent || e.data?.channel !== 'astrobox-rocket') return;
+  if (e.data.type === 'speed' && [1, 10, 100].includes(e.data.speed)) { setSpeed(e.data.speed); return; }
   if (e.data.type === 'reset') { doReset(); return; }
   if (e.data.type === 'arm' && sim.phase === 'PRELAUNCH') {
     const fuel = Number(e.data.fuel); if (!Number.isFinite(fuel) || fuel < 20 || fuel > 100) return;

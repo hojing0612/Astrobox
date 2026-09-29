@@ -75,8 +75,22 @@ export function sliderS(t) { if (t <= 1e-8) return 0; const n = KNOTS.length - 1
 // 로켓 탐구 — 모형의 조건·선택지·되묻기 문구
 export const ROCKET_ACTIVITY = {
   id: 'rocket', title: '로켓 발사 탐구',
-  question: '2단 연료를 바꾸면 지구를 계속 돌 수 있을까요?',
-  choices: [{ id: 'orbit', label: '궤도에 들어갈 거예요' }, { id: 'fail', label: '궤도에 못 들어갈 거예요' }],
+  question: '이 연료로 지구를 계속 돌 수 있을까요?',
+  choices: [{ id: 'orbit', label: '계속 돌 거예요' }, { id: 'fail', label: '못 돌 거예요' }],
   coach: '높이 올라가기만 하면 계속 돌 수 있을까요? 가장 낮은 높이(근지점)와 옆으로 움직이는 속도를 함께 살펴봐요. 다음에는 연료량을 어떻게 바꿔 볼까요?',
   note: '나로호 모양을 참고한 교육용 근사 모형이에요. 실제 나로호의 제원·발사 기록과 달라요. 목표 고도는 약 200 km이고, 가장 낮은 높이가 100 km 이상인 지구 궤도를 성공으로 판정해요. 연료를 바꾸면 출발 질량도 함께 달라져요.',
 };
+
+// 비행 단계 안내는 계산에서 발생한 이벤트에만 반응해요.
+export const ROCKET_MILESTONES = {
+  count: '발사 준비! 카운트다운을 함께 세어 봐요.',
+  ignition: '엔진에 불이 붙었어요!',
+  liftoff: '출발! 높이와 속도가 어떻게 바뀌나요?',
+  sep: '1단이 떨어졌어요! 가벼워진 로켓을 따라가요.',
+  s2ign: '2단 엔진이 켜졌어요. 이제 옆으로도 빨라져요.',
+  fairing: '위성을 감싸던 덮개가 열렸어요!',
+  orbit: '엔진을 꺼도 지구 주위를 계속 돌아요!',
+  fail: '연료를 다 썼어요. 예측과 결과를 비교해 봐요.',
+  crash: '지표면에 닿았어요. 조건을 바꿔 다시 도전해요.',
+};
+export const ROCKET_OUTCOMES = { orbit: '지구를 계속 도는 궤도에 들어갔어요!', fail: '이번엔 궤도에 들어가지 못했어요.' };
