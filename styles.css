@@ -81,3 +81,29 @@ input[type=range]{cursor:grab;transition:filter .2s}input[type=range]:hover{filt
 .quiz .q{font-weight:800;margin:8px 0}.quiz .why{font-size:.86rem;color:var(--muted);margin:8px 0;line-height:1.5}.quiz .score{font-size:.8rem;color:var(--muted)}
 .facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.facts .f{background:#0d1527;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:.84rem;line-height:1.45}.facts .f b{display:block;font-size:1.05rem}
 @media (max-width:760px){.facts{grid-template-columns:1fr}.dex{grid-template-columns:repeat(2,1fr)}.calendar .date{font-size:1.7rem}}
+
+/* 로켓 탐구: 작은 화면에서는 예측 패널과 장면을 세로로 배치해요. */
+.rocket-wrap { max-width: 1480px; }
+.rocket-intro { margin-bottom: 18px; }
+.rocket-intro h1 { margin: 8px 0; }
+.rocket-layout { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.rocket-study { display: grid; gap: 14px; }
+.rocket-study fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.rocket-study legend { font-weight: 700; margin-bottom: 14px; }
+.rocket-study label { display: block; margin: 10px 0 6px; }
+.rocket-study input[type=range] { width: 100%; }
+.rocket-study output { color: var(--accent); font-weight: 700; }
+.rocket-study .reason { width: 100%; }
+.rocket-study .choice { display: flex; gap: 8px; align-items: center; }
+.rocket-study .choice:has(input:checked) { border-color: var(--accent); background: #ff623718; }
+.rocket-study fieldset:disabled { opacity: .7; }
+.rocket-stage { min-width: 0; }
+.rocket-stage h2 { margin: 0 0 10px; }
+.rocket-stage iframe { width: 100%; height: min(760px, 80vh); min-height: 540px; border: 1px solid var(--line); border-radius: 16px; background: #000; display: block; }
+#rocketResult .primary { margin-top: 14px; width: 100%; }
+#rocketObservation { font-variant-numeric: tabular-nums; line-height: 1.7; }
+@media (max-width: 900px) {
+  .rocket-layout { display: flex; flex-direction: column; }
+  .rocket-study, .rocket-stage { width: 100%; }
+  .rocket-stage iframe { min-height: 580px; height: 75vh; }
+}

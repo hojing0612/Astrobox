@@ -25,9 +25,12 @@
 ```
 index.html            진입점(importmap, 상단 내비, 푸터 출처)
 styles.css            전체 스타일(CSS 변수 :root, 호버·효과 애니메이션 포함)
-src/app.js            해시 라우터: #home #m/<id> #lab #stars #timeline #report #account. 모든 화면 렌더
+src/app.js            해시 라우터: #home #m/<id> #lab #rocket #stars #timeline #report #account. 모든 화면 렌더
 src/physics.js        RK4 2체/지구+달 3체, classify, propagate, hohmann, moonShot, swingBy, 상수
 src/missions.js       미션 m1~m4 정의(변수·선택지·run·judge·coachRules·hints·solution·transfer·lawCard)
+src/rocket.js         로켓 탐구 화면: 예측·연료 변경·발사·설명 카드·리포트 연결
+src/rocket-physics.js 제공 HTML의 SI 단위 발사 모형. 성공 판정은 physics.js의 classify 사용
+rocket/index.html     제공 HTML의 3D 연출(Three.js 0.164.1 iframe 격리, WebGL 필요)
 src/coach.js          규칙 코치(reply, ladder, askCoach)
 src/render.js         2D Canvas 궤도 뷰(WebGL 없을 때 폴백)
 src/render3d.js       Three.js 3D 뷰(NASA 텍스처, 낮/밤 셰이더, 펭귄 스프라이트, Line2 궤적)
@@ -48,6 +51,7 @@ assets/tex/*.jpg      NASA 공개 텍스처(README 「이미지 출처」)
 ## 4. 실행·검증
 
 ```bash
+npm test                         # 로켓 연료별 판정·리셋·기존 궤도 기준값 검증
 node dev.js                      # http://localhost:8092  (file:// 은 모듈 때문에 안 됨)
 DATABASE_URL=... SESSION_SECRET=... node dev.js   # 계정·서버 저장까지 켜려면
 ```
@@ -72,6 +76,7 @@ DATABASE_URL=... SESSION_SECRET=... node dev.js   # 계정·서버 저장까지 
 - 가족 계정, 서버 저장, 부모 리포트, 부모 요청 → 미션 팩 해금 → 데모 결제(주문·권한 DB 기록, 청구 없음)
 - 「우주 138억 년」 타임머신(장면·우주 달력·퀴즈), 「별의 생애」 별 키우기(예측·재생·판정·도감)
 - 효과음·폭죽·호버·펭귄 리액션
+- 로켓 발사 탐구(#rocket): 2단 연료 20~100% 예측·실험, 3D 발사/단 분리, 기존 classify로 궤도 판정, 설명 카드·부모 리포트 연결. 실제 나로호 제원을 재현하지 않는 근사 모형이며 세부 검증값은 README 참조.
 
 ## 7. 남은 일 (우선순위 순)
 
