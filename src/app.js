@@ -7,7 +7,9 @@ import { askCoach, ladder } from './coach.js';
 import * as store from './store.js';
 import * as account from './account.js';
 import * as unlock from './unlock.js';
-import { starFate, TIMELINE } from './content.js';
+import { starFate, AGE, KID_EVENTS, cosmicCalendar, TIME_QUIZ, FAMOUS_STARS, FATE_CHOICES, fateId, sliderS, sliderT } from './content.js';
+import { CosmosView } from './cosmos.js';
+import { StarView } from './starlife.js';
 import * as P from './physics.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -212,33 +214,77 @@ function renderLocked(m) {
     <div style="display:flex;gap:8px;margin-top:12px"><a class="primary" style="text-decoration:none;text-align:center" href="#m/m1">미션 1로</a><a class="secondary" style="text-decoration:none;text-align:center" href="#report">부모 리포트</a></div></div></div>`;
 }
 
-// ---------------- CONTENT: 별의 생애
+// ---------------- CONTENT: 별의 생애 — 별 키우기(예측 → 일생 빨리 감기 → 판정 → 별 도감)
+const DEX_KEY = 'astrobox.dex'; const dexLoad = () => { try { return JSON.parse(localStorage.getItem(DEX_KEY)) || []; } catch { return []; } };
+const FATE_EMOJI = { none: '🟤', wd: '⚪', ns: '💫', bh: '⚫' }; const FATE_NAME = { none: '갈색왜성', wd: '백색왜성', ns: '중성자별', bh: '블랙홀' };
 function renderStars() {
   setNav('stars');
-  root.innerHTML = `<div class="wrap"><div class="content"><section class="panel"><div class="eyebrow">보기 · 별의 생애</div><h1>질량이 별의 운명을 정한다</h1>
-    <div class="row" style="margin:14px 0"><b>별의 질량</b><input type="range" id="mass" min="0" max="1000" value="500"><output id="mout">1.0 태양</output></div>
-    <div id="fate"></div>
-    <p class="small muted">근사 모형: 수명 ≈ 100억 년 × (질량)<sup>-2.5</sup>, 밝기 ≈ (질량)<sup>3.5</sup>. 경계값(0.08 · 8 · 20 태양질량)은 교과서 수준의 대략적인 값이고 실제로는 조성·회전에 따라 달라져요.</p></section>
-    <section class="panel"><div class="eyebrow">왜 실험이 아닌가</div><p style="line-height:1.6">별은 사람이 조건을 바꿔 다시 돌려 볼 수 없어요. 그래서 여기서는 질량을 바꾸며 <b>운명의 갈림길</b>을 보기만 해요. 대신 질문은 남길 수 있어요: 태양은 왜 폭발하지 않을까? 초신성이 없었다면 지구의 철은 어디서 왔을까?</p>
-    <div class="law"><div class="m">태양의 미래</div><div class="r"><div class="k">지금</div><div>주계열 · 약 46억 년 살았고 50억 년쯤 더 산다</div></div><div class="r"><div class="k">그다음</div><div>적색거성 → 바깥층을 날려 행성상 성운 → 백색왜성</div></div></div></section></div></div>`;
-  const draw = () => { const m = Math.exp(Math.log(0.05) + (Number($('#mass').value) / 1000) * (Math.log(100) - Math.log(0.05))); const f = starFate(m); $('#mout').textContent = `${m < 10 ? m.toFixed(2) : m.toFixed(0)} 태양`;
-    $('#fate').innerHTML = `<div class="fate">${esc(f.name)}</div><p style="line-height:1.55">${esc(f.desc)}</p><div class="law"><div class="r"><div class="k">수명</div><div>${f.lifetime ? (f.lifetime >= 1e9 ? (f.lifetime / 1e9).toFixed(1) + '억 년 × 10 = ' + (f.lifetime / 1e8).toFixed(0) + '억 년' : (f.lifetime / 1e6).toFixed(0) + '백만 년') : '핵융합 없음'}</div></div><div class="r"><div class="k">밝기</div><div>태양의 ${f.luminosity < 0.01 ? f.luminosity.toExponential(1) : f.luminosity < 100 ? f.luminosity.toFixed(2) : f.luminosity.toFixed(0)}배</div></div></div>`; };
-  $('#mass').addEventListener('input', draw); draw();
+  root.innerHTML = `<div class="wrap"><div class="content"><section class="panel"><div class="eyebrow">놀이 · 별 키우기</div><h1>별의 무게를 정하면 운명이 정해져요</h1>
+    <div class="sim" style="aspect-ratio:1.35;min-height:300px"><canvas id="sv"></canvas><div class="tag" id="stage">주계열 · 지금 태양이 있는 단계</div><div class="sub" id="ssub">슬라이더로 별의 질량을 바꿔 봐요. 크기와 색이 바뀌어요. 그다음 어떻게 끝날지 맞히고 ▶ 을 눌러요</div></div>
+    <div class="row" style="margin:12px 0 4px"><b>별의 질량</b><input type="range" id="mass" min="0" max="1000" value="500"><output id="mout">1.0 태양</output></div>
+    <div class="chips" id="famous">${FAMOUS_STARS.map((s) => `<button class="chip" data-m="${s.mass}" title="${esc(s.note)}">${esc(s.name)}</button>`).join('')}</div>
+    <div class="row"><button class="primary" id="life" disabled>▶ 일생 빨리 감기</button></div>
+    <div class="facts" id="facts"></div>
+    <p class="small muted" style="margin-top:10px">근사 모형: 수명 ≈ 100억 년 × (질량)<sup>-2.5</sup>, 밝기 ≈ (질량)<sup>3.5</sup>. 경계값(0.08 · 8 · 20 태양질량)은 교과서 수준의 대략적인 값. 연출 시간은 실제 비율과 달라요.</p></section>
+    <section class="panel"><div class="coach-head"><img class="penguin" src="assets/penguin-128.png" width="56" height="56" alt=""><div><b>펭귄 코치</b><div class="small muted">먼저 맞혀 봐. 판정은 코드가 해요</div></div></div>
+    <div class="bubble ai" id="sbub">이 별은 어떻게 끝날까? 하나 고르고 ▶ 을 눌러 봐</div>
+    <div id="choices">${FATE_CHOICES.map((c, i) => `<button class="choice" data-id="${c.id}"><b>${'ABCD'[i]}</b>${esc(c.label)}</button>`).join('')}</div>
+    <div id="verdict"></div>
+    <div class="law"><div class="m">별 도감 · 4가지 운명을 다 모아 봐</div><div class="dex" id="dex"></div></div>
+    <div class="law"><div class="m">태양의 미래</div><div class="r"><div class="k">지금</div><div>주계열 · 46억 년 살았고 50억 년쯤 더 살아요</div></div><div class="r"><div class="k">그다음</div><div>적색거성 → 행성상 성운 → 백색왜성. 폭발하지 않아요(8 태양질량보다 가벼워서)</div></div></div></section></div></div>`;
+  const view = new StarView($('#sv')); let m = 1, choice = null, busy = false;
+  const dexDraw = () => { const got = dexLoad(); $('#dex').innerHTML = ['none', 'wd', 'ns', 'bh'].map((k) => `<div class="d ${got.includes(k) ? 'got' : ''}"><i>${FATE_EMOJI[k]}</i>${FATE_NAME[k]}</div>`).join(''); };
+  const facts = () => { const f = starFate(m); const L = f.lifetime; const life = !L ? '핵융합이 안 켜져요' : L >= 1e12 ? `${(L / 1e12).toFixed(0)}조 년` : L >= 1e8 ? `${(L / 1e8).toFixed(L < 1e9 ? 1 : 0)}억 년` : `${(L / 1e6).toFixed(0)}백만 년`;
+    const cmp = !L ? '' : L > AGE ? `우주 나이(138억 년)의 ${(L / AGE).toFixed(0)}배 — 아직 죽은 적 없음` : L > 1e9 ? `태양 수명(100억 년)의 ${(L / 1e10).toFixed(2)}배` : L > 1.6e8 ? `공룡 시대(1.6억 년)의 ${(L / 1.6e8).toFixed(1)}배` : `공룡 시대(1.6억 년)의 ${(L / 1.6e8).toFixed(2)}배 — 눈 깜짝할 새`;
+    const lum = f.luminosity; const color = m < 0.5 ? '차가워서 붉게' : m < 1.5 ? '태양처럼 노랗게' : m < 6 ? '뜨거워서 하얗게' : '아주 뜨거워서 파랗게';
+    $('#facts').innerHTML = `<div class="f"><b>${life}</b>수명 · ${esc(cmp)}</div><div class="f"><b>태양의 ${lum < 0.01 ? lum.toExponential(1) : lum < 100 ? lum.toFixed(1) : Math.round(lum).toLocaleString()}배</b>밝기 · ${color} 빛나요</div>`; };
+  const setMass = (v) => { m = v; view.setMass(m); $('#mout').textContent = `${m < 10 ? m.toFixed(2) : m.toFixed(0)} 태양`; document.querySelectorAll('#famous .chip').forEach((c) => c.classList.toggle('on', Math.abs(Number(c.dataset.m) - m) < 1e-6)); facts(); if (!busy) { $('#stage').textContent = m < 0.08 ? '갈색왜성 후보' : '주계열 · 지금'; $('#stage').classList.remove('pop'); void $('#stage').offsetWidth; $('#stage').classList.add('pop'); } };
+  const sliderToMass = () => Math.exp(Math.log(0.05) + (Number($('#mass').value) / 1000) * (Math.log(100) - Math.log(0.05)));
+  $('#mass').addEventListener('input', () => { if (busy) return; setMass(sliderToMass()); });
+  document.querySelectorAll('#famous .chip').forEach((c) => c.addEventListener('click', () => { if (busy) return; const v = Number(c.dataset.m); $('#mass').value = Math.round(1000 * (Math.log(v) - Math.log(0.05)) / (Math.log(100) - Math.log(0.05))); setMass(v); toast(`${c.textContent} · ${c.title}`); sound.pop(); }));
+  document.querySelectorAll('#choices .choice').forEach((b) => b.addEventListener('click', () => { if (busy) return; choice = b.dataset.id; document.querySelectorAll('#choices .choice').forEach((x) => x.classList.toggle('active', x === b)); $('#life').disabled = false; $('#sbub').textContent = '좋아, 그럼 ▶ 을 눌러서 확인해 보자'; sound.pop(); }));
+  view.onStage = (st, i, n) => { $('#stage').textContent = `${i + 1}/${n} ${st.name}`; $('#stage').classList.remove('pop'); void $('#stage').offsetWidth; $('#stage').classList.add('pop'); $('#ssub').textContent = st.desc; if (st.name.includes('초신성')) { sound.launch(); shake($('#sv').parentElement); } else sound.pop(); };
+  view.onDone = () => { busy = false; const fid = fateId(m); const ok = fid === choice; const got = dexLoad(); if (!got.includes(fid)) { got.push(fid); try { localStorage.setItem(DEX_KEY, JSON.stringify(got)); } catch {} } dexDraw();
+    $('#verdict').innerHTML = ok ? `<div class="verdict ok">🎉 맞았어요! ${m < 10 ? m.toFixed(2) : m.toFixed(0)} 태양질량 별의 끝은 <b>${FATE_NAME[fid]}</b>. 별 도감에 들어갔어요.</div>` : `<div class="verdict no">아쉽! 이 별의 끝은 <b>${FATE_NAME[fid]}</b>였어요. 기준은 질량이에요: 8 태양질량보다 가벼우면 백색왜성, 8~20이면 중성자별, 더 무거우면 블랙홀, 0.08보다 가벼우면 불이 안 붙어요. 도감에는 들어갔어요.</div>`;
+    if (ok) { confetti(window.innerWidth / 2, window.innerHeight / 3, 120); sound.win(); penguinReact('happy'); } else { sound.lose(); penguinReact('sad'); }
+    store.log('quiz', { page: 'stars', mass: Number(m.toFixed(2)), choice, correct: ok });
+    if (ok) store.addCard({ mission: '-', title: `별 카드: ${FATE_NAME[fid]}`, initial: `내 예측: ${FATE_CHOICES.find((c) => c.id === choice)?.label}`, observation: `${m < 10 ? m.toFixed(2) : m.toFixed(0)} 태양질량 → ${starFate(m).name}`, explanation: starFate(m).desc, next: '' });
+    $('#sbub').textContent = ok ? '완벽해! 다른 질량으로도 해 볼래? 도감 4칸을 다 채워 봐' : '괜찮아, 질량을 바꿔서 다시 해 보자. 8과 20이 갈림길이야'; $('#life').textContent = '▶ 다시 보기'; $('#life').disabled = false; };
+  $('#life').addEventListener('click', () => { if (busy) return; if (!choice) { toast('먼저 어떻게 끝날지 골라 봐요'); return; } busy = true; $('#verdict').innerHTML = ''; $('#life').disabled = true; $('#sbub').textContent = '별이 태어났어요. 끝까지 지켜보자'; sound.launch(); view.play(); });
+  dexDraw(); setMass(1);
 }
 
-// ---------------- CONTENT: 타임라인
+// ---------------- CONTENT: 타임라인 — 펭귄 타임머신(장면 + 우주 달력 + 퀴즈)
+const sOf = sliderS, tOf = sliderT;
+function fmtT(t) { return t < 1 / 3.15e7 ? `${(t * 3.15e7).toExponential(0)} 초` : t < 1 ? `${Math.round(t * 3.15e7 / 60)} 분` : t < 1e6 ? `${Math.round(t).toLocaleString()} 년` : t < 1e9 ? `${(t / 1e6).toFixed(0)}백만 년` : `${(t / 1e8).toFixed(0)}억 년`; }
 function renderTimeline() {
   setNav('timeline');
-  root.innerHTML = `<div class="wrap"><div class="content"><section class="panel"><div class="eyebrow">보기 · 우주 138억 년</div><h1>시간을 당겨 보기</h1>
-    <div class="row" style="margin:14px 0"><b>빅뱅 후</b><input type="range" id="tt" min="0" max="1000" value="1000"><output id="tout"></output></div>
-    <div id="tnow"></div><p class="small muted">로그 눈금: 왼쪽으로 갈수록 시간이 급격히 짧아져요. 값은 표준 우주론의 근사치예요.</p></section>
-    <section class="panel"><div class="tl" id="tl"></div></section></div></div>`;
-  const draw = () => { const s = Number($('#tt').value) / 1000; const t = s === 0 ? 0 : Math.exp(Math.log(1e-6) + s * (Math.log(1.38e10) - Math.log(1e-6)));
-    $('#tout').textContent = t < 1 ? `${(t * 3.15e7).toExponential(1)} 초` : t < 1e6 ? `${Math.round(t).toLocaleString()} 년` : t < 1e9 ? `${(t / 1e6).toFixed(0)}백만 년` : `${(t / 1e8).toFixed(0)}억 년`;
-    let cur = TIMELINE[0]; for (const e of TIMELINE) if (e.t <= t) cur = e;
-    $('#tnow').innerHTML = `<div class="fate">${esc(cur.label)}</div><p>${esc(cur.desc)}</p>`;
-    $('#tl').innerHTML = TIMELINE.map((e) => `<div class="e ${e === cur ? 'on' : ''}"><b>${esc(e.label)}</b><span>${esc(e.desc)}</span></div>`).join(''); };
-  $('#tt').addEventListener('input', draw); draw();
+  root.innerHTML = `<div class="wrap"><div class="content"><section class="panel"><div class="eyebrow">놀이 · 시간 여행</div><h1>펭귄 타임머신을 타고 138억 년</h1>
+    <div class="sim" style="aspect-ratio:1.35;min-height:300px"><canvas id="cv2"></canvas><div class="tag" id="era">🔭 지금</div><div class="sub" id="tsub">슬라이더를 맨 왼쪽으로 당기면 빅뱅이에요. 🚀 을 누르면 처음부터 지금까지 자동으로 여행해요</div></div>
+    <div class="row" style="margin:12px 0 4px"><b>빅뱅 후</b><input type="range" id="tt" min="0" max="1000" value="1000"><output id="tout">138억 년</output></div>
+    <div class="row"><button class="primary" id="go">🚀 시간 여행 출발</button></div>
+    <div class="chips" id="jumps">${KID_EVENTS.map((e, i) => `<button class="chip" data-i="${i}">${e.emoji} ${esc(e.label)}</button>`).join('')}</div>
+    <p class="small muted">로그 눈금: 왼쪽으로 갈수록 시간이 급격히 짧아져요. 값은 표준 우주론·교과서 근사치예요.</p></section>
+    <section class="panel"><div class="eyebrow">우주 138억 년이 1년이라면</div>
+    <div class="calendar"><div class="date" id="cdate">12월 31일</div><div class="time" id="ctime">밤 11시 59분 · 자정 0.00초 전</div><div class="year">하루 = 3,800만 년 · 1시간 = 160만 년 · 1초 = 440년 (칼 세이건의 우주 달력)</div></div>
+    <div id="enow"></div>
+    <div class="coach-head" style="margin-top:14px"><img class="penguin" src="assets/penguin-128.png" width="56" height="56" alt=""><div><b>펭귄 코치</b><div class="small muted">맞혀 봐 · 3문제</div></div></div>
+    <div class="quiz" id="quiz"></div></section></div></div>`;
+  const view = new CosmosView($('#cv2')); let lastEra = -1;
+  const show = (t, fromPlay = false) => { const i = KID_EVENTS.reduce((a, e, k) => (e.t <= t ? k : a), 0); const e = KID_EVENTS[i]; const cal = cosmicCalendar(t);
+    $('#tout').textContent = fmtT(t); $('#cdate').textContent = `${cal.month}월 ${cal.day}일`; $('#ctime').textContent = cal.text.replace(/^\d+월 \d+일 /, '');
+    if (i !== lastEra) { lastEra = i; $('#era').textContent = `${e.emoji} ${e.label}`; $('#era').classList.remove('pop'); void $('#era').offsetWidth; $('#era').classList.add('pop'); $('#tsub').textContent = `${e.desc} — 펭귄: "${e.bubble}"`; $('#enow').innerHTML = `<div class="law"><div class="m">${e.emoji} ${esc(e.label)}</div><div class="r"><div class="k">언제</div><div>${esc(e.desc)}</div></div><div class="r"><div class="k">달력으로</div><div>${esc(cal.text)}</div></div></div>`; document.querySelectorAll('#jumps .chip').forEach((c) => c.classList.toggle('on', Number(c.dataset.i) === i)); if (fromPlay) sound.pop(); } };
+  $('#tt').addEventListener('input', () => { view.stop(); const t = tOf(Number($('#tt').value) / 1000); view.setTime(t); show(t); });
+  document.querySelectorAll('#jumps .chip').forEach((c) => c.addEventListener('click', () => { view.stop(); const e = KID_EVENTS[Number(c.dataset.i)]; $('#tt').value = Math.round(sOf(e.t) * 1000); view.setTime(e.t); lastEra = -1; show(e.t); sound.pop(); }));
+  view.onTick = (t, s) => { $('#tt').value = Math.round(s * 1000); show(t, true); };
+  view.onDone = () => { $('#go').textContent = '🚀 다시 출발'; $('#go').disabled = false; confetti(window.innerWidth / 3, window.innerHeight / 3, 80); sound.win(); penguinReact('happy'); };
+  $('#go').addEventListener('click', () => { $('#go').disabled = true; lastEra = -1; sound.launch(); view.play(); });
+  // 퀴즈
+  let qi = 0, score = 0; const quiz = () => { const q = TIME_QUIZ[qi]; if (!q) { $('#quiz').innerHTML = `<div class="verdict ${score >= 2 ? 'ok' : 'no'}">퀴즈 끝! ${score}/${TIME_QUIZ.length} 맞았어요. ${score >= 2 ? '우주 달력 마스터 🏅' : '타임머신을 한 번 더 타고 다시 풀어 봐'}</div><button class="secondary" id="again">다시 풀기</button>`; $('#again').addEventListener('click', () => { qi = 0; score = 0; quiz(); }); if (score >= 2) { confetti(window.innerWidth * 0.75, window.innerHeight / 2, 100); sound.win(); } store.log('quiz', { page: 'timeline', score }); return; }
+    $('#quiz').innerHTML = `<div class="score">${qi + 1} / ${TIME_QUIZ.length}</div><div class="q">${esc(q.q)}</div>${q.choices.map((c, i) => `<button class="choice" data-i="${i}"><b>${'ABC'[i]}</b>${esc(c)}</button>`).join('')}<div class="why" id="why"></div>`;
+    document.querySelectorAll('#quiz .choice').forEach((b) => b.addEventListener('click', () => { const ok = Number(b.dataset.i) === q.correct; document.querySelectorAll('#quiz .choice').forEach((x) => { x.disabled = true; x.classList.toggle('active', Number(x.dataset.i) === q.correct); }); if (ok) { score++; sound.win(); penguinReact('happy'); } else { sound.lose(); shake(b); }
+      $('#why').innerHTML = `${ok ? '🎉 정답! ' : '아쉽! 정답은 ' + esc(q.choices[q.correct]) + '. '}${esc(q.why)} <button class="secondary" id="nxt" style="margin-left:6px">다음 →</button>`; $('#nxt').addEventListener('click', () => { qi++; quiz(); }); }, { once: true })); };
+  quiz(); show(AGE);
 }
 
 // ---------------- ROUTER
