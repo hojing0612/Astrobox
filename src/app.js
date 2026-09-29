@@ -1,7 +1,7 @@
 // AstroBox 앱 — 해시 라우팅: #home · #m/<id> · #report · #stars · #timeline
 import { MISSIONS, byId } from './missions.js';
 import { OrbitView } from './render.js';
-import { askCoach } from './coach.js';
+import { askCoach, ladder } from './coach.js';
 import * as store from './store.js';
 import { starFate, TIMELINE } from './content.js';
 import * as P from './physics.js';
@@ -23,6 +23,7 @@ function renderHome() {
     <a class="primary" style="display:inline-block;width:auto;padding:12px 26px;text-decoration:none" href="#m/m1">첫 미션 시작 →</a></section>
   <div class="wrap"><div class="grid">
     ${MISSIONS.map((m) => { const s = sum.byMission[m.id]; return `<a class="card" href="#m/${m.id}"><div class="n">${m.order}</div><h3>${esc(m.title)}</h3><p>${esc(m.intro)}</p><div class="tag">${s ? `실험 ${s.experiments}회 · 카드 ${s.cards}장` : '아직 안 해봤어요'} · ${esc(m.concept)}</div></a>`; }).join('')}
+    <a class="card" href="#lab"><div class="n" style="background:#ffb454">⚗</div><h3>자유 실험실</h3><p>예측 없이 마음껏. 발사각·속력·고도·지구 질량을 바꾸고 속력·중력 화살표를 보며 놀기</p><div class="tag">PhET처럼 자유롭게 · 관찰 문장은 코드가 써줘요</div></a>
     <a class="card" href="#stars"><div class="n" style="background:#5aa9ff">★</div><h3>별의 생애</h3><p>질량을 바꾸면 별의 운명이 어떻게 달라질까? 갈색왜성부터 블랙홀까지</p><div class="tag">보기 · 실험은 아니에요</div></a>
     <a class="card" href="#timeline"><div class="n" style="background:#5aa9ff">∞</div><h3>우주 138억 년</h3><p>빅뱅부터 지금까지, 시간을 당겨 보기</p><div class="tag">보기 · 실험은 아니에요</div></a>
     <a class="card" href="#report"><div class="n" style="background:#46d49a">👪</div><h3>부모 리포트</h3><p>아이가 한 활동과 설명이 어떻게 달라졌는지</p><div class="tag">이 브라우저에 저장된 기록만</div></a>
@@ -35,7 +36,7 @@ function renderMission(id) {
   const m = byId(id); if (!m) { location.hash = '#home'; return; }
   setNav('');
   const V = m.variable;
-  const state = { choice: null, reason: '', value: V.default, result: null, judged: null, history: [], stage: 'predict', transfer: null };
+  const state = { choice: null, reason: '', value: V.default, result: null, judged: null, history: [], stage: 'predict', transfer: null, experiments: 0, turns: 0, explained: false };
   root.innerHTML = `
   <div class="wrap">
     <div class="steps" style="margin-bottom:14px"><span><i class="dot on" id="d1"></i>예측</span><span><i class="dot" id="d2"></i>실험</span><span><i class="dot" id="d3"></i>설명</span><span><i class="dot" id="d4"></i>새 조건</span><span class="muted" style="margin-left:auto">미션 ${m.order} · ${esc(m.concept)}</span></div>
@@ -59,6 +60,7 @@ function renderMission(id) {
         <div class="controls">
           <div class="row"><b>${esc(V.label)}</b><input type="range" id="slider" min="${V.log ? 0 : V.min}" max="${V.log ? 1000 : V.max}" step="${V.log ? 1 : V.step}" value="${V.log ? logToSlider(V, V.default) : V.default}"><output id="out">${fmt(V.default, V.step < 0.1 ? 2 : 0)} ${V.unit}</output></div>
           <div class="lock">잠금 ${m.locked.map((l) => `<span>${esc(l)}</span>`).join('')} 한 번에 하나만 바꿔요</div>
+          <div class="row" style="margin-top:8px;gap:8px"><button class="secondary" id="playBtn" style="padding:6px 12px">⏸ 일시정지</button><button class="secondary rate" data-r="1" style="padding:6px 10px">1×</button><button class="secondary rate" data-r="3" style="padding:6px 10px">3×</button><button class="secondary rate" data-r="10" style="padding:6px 10px">10×</button><label class="small muted" style="margin-left:auto"><input type="checkbox" id="vecs" checked> 속력·중력 화살표</label></div>
           <div class="obs" id="obs">먼저 예측을 고르고 「이대로 실험하기」를 눌러요.</div>
         </div>
       </section>
@@ -66,6 +68,8 @@ function renderMission(id) {
         <div class="eyebrow">③ 코치 · 답은 알려주지 않아요</div>
         <div class="coach" id="coach"><div class="bubble ai"><div class="who">코치</div>먼저 예측해 봐. 왜 그렇게 생각했는지도 한 줄!</div></div>
         <div style="display:flex;gap:8px;margin-top:10px"><input id="say" class="reason" style="min-height:0;padding:8px 10px" placeholder="코치에게 답하기…"><button class="secondary" id="sayBtn">보내기</button></div>
+        <div class="ladder" id="ladder"></div>
+        <div class="solution hidden" id="solution"></div>
         <div class="card-form"><div class="t">④ 설명 카드 · 내 말로 쓰기</div>
           <div class="r"><div class="k">처음 생각</div><div id="c1" class="muted">예측을 고르면 여기 들어가요</div></div>
           <div class="r"><div class="k">관찰</div><div id="c2" class="muted">실험하면 코드가 채워요</div></div>
@@ -81,7 +85,23 @@ function renderMission(id) {
   const view = new OrbitView($('#cv'));
   const legend = $('#legend'); legend.innerHTML = m.id === 'm3' ? `<span><i style="background:#ffb454"></i>못 미침</span><br><span><i style="background:#46d49a"></i>달 도착</span><br><span><i style="background:#5aa9ff"></i>지나침</span>` : `<span><i style="background:#ff6b6b"></i>떨어짐</span><br><span><i style="background:#ff6237"></i>계속 돎</span><br><span><i style="background:#5aa9ff"></i>벗어남</span>`;
   // 초기 화면: 기본값으로 그리기(판정 없이)
-  view.show(m.run(V.default), false);
+  view.show(m.run(V.default), false); view.simTime = 0; view.draw();
+  $('#playBtn').addEventListener('click', () => { $('#playBtn').textContent = view.toggle() ? '⏸ 일시정지' : '▶ 재생'; });
+  document.querySelectorAll('.rate').forEach((b) => b.addEventListener('click', () => { view.setRate(Number(b.dataset.r)); document.querySelectorAll('.rate').forEach((x) => { x.style.borderColor = x === b ? 'var(--accent)' : ''; }); }));
+  $('#vecs').addEventListener('change', (e) => { view.vectors = e.target.checked; view.draw(); });
+  function renderLadder() {
+    const steps = ladder(m, state.result, state);
+    $('#ladder').innerHTML = '<div class="t">막혔어? 순서대로 열려요</div>' + steps.map((st) => `<button class="secondary lad" data-id="${st.id}" ${st.unlocked ? '' : 'disabled'} title="${st.unlocked ? '' : (st.id === 'solution' ? '실험 1회 + 「다시 설명」을 쓰면 열려요' : '먼저 실험해 봐요')}">${st.id === 'solution' ? '📖 ' : '💡 '}${st.label}</button>`).join('');
+  }
+  renderLadder();
+  $('#ladder').addEventListener('click', (e) => { const b = e.target.closest('.lad'); if (!b || b.disabled) return; const st = ladder(m, state.result, state).find((x) => x.id === b.dataset.id); if (st.id !== 'solution') { addBubble('ai', st.text, '힌트'); store.log('hint', { mission: m.id, id: st.id }); return; } showSolution(); });
+  function showSolution() {
+    const sol = m.solution(state.result); const box = $('#solution'); box.classList.remove('hidden');
+    box.innerHTML = `<div class="t">📖 해설 · 시도한 뒤에만 열려요</div><div class="ans">정답 <b>${sol.answer}</b> — ${esc(sol.title)}</div><ol>${sol.why.map((w) => `<li>${esc(w)}</li>`).join('')}</ol><div class="num">${esc(sol.numbers)}</div><div class="look">👀 ${esc(sol.look)}</div>`;
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' }); store.log('solution', { mission: m.id });
+  }
+  function addBubble(role, text, who) { const box = $('#coach'); const b = document.createElement('div'); b.className = 'bubble ' + (role === 'ai' ? 'ai' : 'user'); b.innerHTML = role === 'ai' ? `<div class="who">${who || '코치'}</div>${esc(text)}` : esc(text); box.appendChild(b); box.scrollTop = box.scrollHeight; return b; }
+  $('#c3').addEventListener('input', (e) => { state.explained = e.target.value.trim().length >= 5; renderLadder(); });
 
   // 예측
   $('#choices').addEventListener('click', (e) => { const b = e.target.closest('.choice'); if (!b) return; state.choice = b.dataset.id; document.querySelectorAll('.choice').forEach((x) => { x.classList.toggle('active', x === b); x.setAttribute('aria-checked', x === b); }); $('#c1').textContent = m.choices.find((c) => c.id === state.choice).text; $('#c1').classList.remove('muted'); $('#runBtn').disabled = false; });
@@ -95,7 +115,8 @@ function renderMission(id) {
 
   function runExperiment(logIt = true) {
     const res = m.run(state.value); state.result = res;
-    view.show(res, logIt);
+    view.show(res, true); $('#playBtn').textContent = '⏸ 일시정지';
+    if (logIt) { state.experiments++; renderLadder(); }
     $('#obs').textContent = res.observation; $('#c2').textContent = res.observation; $('#c2').classList.remove('muted');
     const j = m.judge(state.choice, res); state.judged = j;
     const badge = $('#badge'); badge.className = 'badge ' + j.verdict; badge.textContent = `판정 · ${j.text}`; badge.classList.remove('hidden');
@@ -109,13 +130,12 @@ function renderMission(id) {
     $('#d3').classList.add('on'); state.stage = 'explain';
   });
 
-  async function coach(stage) {
-    const box = $('#coach'); const thinking = document.createElement('div'); thinking.className = 'bubble ai'; thinking.innerHTML = '<div class="who">코치</div>…'; box.appendChild(thinking); box.scrollTop = box.scrollHeight;
-    const r = await askCoach({ mission: m, stage, result: state.result, choice: state.choice, reason: state.reason, explanation: $('#c3').value, history: state.history });
-    thinking.innerHTML = `<div class="who">코치${r.source === 'rules' ? '' : ' · AI'}</div>${esc(r.question)}`; state.history.push({ role: 'coach', text: r.question });
+  async function coach(stage, text) {
+    const r = await askCoach({ mission: m, stage, result: state.result, text, turn: state.turns });
+    addBubble('ai', r.question); state.history.push({ role: 'coach', text: r.question });
     store.log('coach', { mission: m.id, source: r.source });
   }
-  $('#sayBtn').addEventListener('click', async () => { const t = $('#say').value.trim(); if (!t) return; $('#say').value = ''; const box = $('#coach'); const b = document.createElement('div'); b.className = 'bubble user'; b.textContent = t; box.appendChild(b); state.history.push({ role: 'child', text: t }); if (!state.result) runExperiment(true); await coach(state.stage); });
+  $('#sayBtn').addEventListener('click', async () => { const t = $('#say').value.trim(); if (!t) return; $('#say').value = ''; addBubble('user', t); state.history.push({ role: 'child', text: t }); if (!state.result) runExperiment(true); await coach(state.stage, t); state.turns++; renderLadder(); });
   $('#say').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#sayBtn').click(); });
 
   // 카드 저장 → 전이 문제
@@ -195,9 +215,40 @@ function renderTimeline() {
 function route() {
   const h = location.hash.replace(/^#/, '') || 'home';
   if (h.startsWith('m/')) return renderMission(h.slice(2));
+  if (h === 'lab') return renderLab();
   if (h === 'report') return renderReport();
   if (h === 'stars') return renderStars();
   if (h === 'timeline') return renderTimeline();
   renderHome();
 }
 window.addEventListener('hashchange', route); route();
+
+// ---------------- FREE LAB
+function renderLab() {
+  setNav('lab');
+  root.innerHTML = `<div class="wrap"><div class="mission" style="grid-template-columns:minmax(280px,.9fr) minmax(440px,1.6fr)">
+    <section class="panel"><div class="eyebrow">자유 실험실 · 예측 없이 마음껏</div><h2>조건을 바꾸고, 화살표를 보고, 무슨 일이 생기는지 봐요</h2>
+      <div class="row"><b>고도</b><input type="range" id="lh" min="0" max="1000" value="${logToSlider({ min: 150, max: 36000 }, 400)}"><output id="lho">400 km</output></div>
+      <div class="row"><b>속력</b><input type="range" id="lv" min="1" max="12" step="0.05" value="7.67"><output id="lvo">7.67 km/s</output></div>
+      <div class="row"><b>발사각</b><input type="range" id="la" min="-60" max="60" step="1" value="0"><output id="lao">0° (옆으로)</output></div>
+      <div class="row"><b>지구 질량</b><input type="range" id="lm" min="0.5" max="2" step="0.1" value="1"><output id="lmo">1.0배</output></div>
+      <div class="row" style="margin-top:8px;gap:8px"><button class="secondary" id="playBtn" style="padding:6px 12px">⏸ 일시정지</button><button class="secondary rate" data-r="1" style="padding:6px 10px">1×</button><button class="secondary rate" data-r="3" style="padding:6px 10px">3×</button><button class="secondary rate" data-r="10" style="padding:6px 10px">10×</button><label class="small muted" style="margin-left:auto"><input type="checkbox" id="vecs" checked> 화살표</label></div>
+      <div class="obs" id="obs"></div>
+      <div class="law" style="margin-top:12px"><div class="m">해 볼 것</div><div class="r"><div class="k">①</div><div>발사각을 바꿔서 원이 아닌 타원을 만들어 봐. 가장 낮은 곳이 어디까지 내려가?</div></div><div class="r"><div class="k">②</div><div>지구 질량을 2배로 하면 같은 속력으로 돌 수 있을까?</div></div><div class="r"><div class="k">③</div><div>중력 화살표와 속력 화살표가 언제 직각이고 언제 아닌지 봐.</div></div></div>
+      <p class="small muted">공기 저항 없는 지구 2체 모형. 지구 질량을 바꾸면 그림의 지구 크기도 조금 바뀌어요(질량의 세제곱근).</p></section>
+    <section class="panel"><div class="sim"><canvas id="cv"></canvas><div class="legend" id="legend"><span><i style="background:#46d49a"></i>속력</span><br><span><i style="background:#5aa9ff"></i>중력</span><br><span><i style="background:#ff6b6b"></i>떨어짐</span><br><span><i style="background:#ff6237"></i>돎</span><br><span><i style="background:#5aa9ff"></i>벗어남</span></div></div></section></div></div>`;
+  const view = new OrbitView($('#cv'));
+  const read = () => ({ h: sliderToLog({ min: 150, max: 36000, step: 10 }, Number($('#lh').value)), v: Number($('#lv').value), a: Number($('#la').value), mu: Number($('#lm').value) });
+  const run = () => { const { h, v, a, mu } = read(); $('#lho').textContent = `${Math.round(h).toLocaleString()} km`; $('#lvo').textContent = `${v.toFixed(2)} km/s`; $('#lao').textContent = `${a}° ${a === 0 ? '(옆으로)' : a > 0 ? '(바깥쪽)' : '(안쪽)'}`; $('#lmo').textContent = `${mu.toFixed(1)}배`;
+    const st = P.freeStart(h, v, a); const cls = P.classify(st.x, st.y, st.vx, st.vy, mu);
+    const sim = P.propagate(st.x, st.y, st.vx, st.vy, { tMax: Math.min(48 * 3600, 3 * (isFinite(cls.el.a) ? 2 * Math.PI * Math.sqrt(cls.el.a ** 3 / (P.MU_EARTH * mu)) : 12 * 3600)), muScale: mu });
+    const vc = Math.sqrt(P.MU_EARTH * mu / (P.R_EARTH + h)); const ve = Math.sqrt(2 * P.MU_EARTH * mu / (P.R_EARTH + h));
+    const obs = cls.kind === 'crash' ? `떨어짐 — 가장 낮은 곳이 ${Math.round(Math.max(0, cls.el.rp - P.R_EARTH)).toLocaleString()} km까지 내려가 대기에 닿아요` : cls.kind === 'orbit' ? `돎 — ${Math.round(sim.minR - P.R_EARTH).toLocaleString()} ~ ${Math.round(sim.maxR - P.R_EARTH).toLocaleString()} km 사이를 ${cls.el.e < 0.05 ? '거의 원' : '타원'}으로 (이심률 ${cls.el.e.toFixed(2)})` : `벗어남 — 탈출 속력 ${ve.toFixed(2)} km/s를 넘었어요`;
+    $('#obs').innerHTML = `<b>${obs}</b><br><span class="muted small">이 고도·질량의 원궤도 속력 ${vc.toFixed(2)} · 탈출 속력 ${ve.toFixed(2)} km/s</span>`;
+    view.show({ kind: cls.kind, sim, el: cls.el, scale: 'auto', muScale: mu }, true); $('#playBtn').textContent = '⏸ 일시정지'; };
+  ['lh', 'lv', 'la', 'lm'].forEach((id) => $('#' + id).addEventListener('input', run));
+  $('#playBtn').addEventListener('click', () => { $('#playBtn').textContent = view.toggle() ? '⏸ 일시정지' : '▶ 재생'; });
+  document.querySelectorAll('.rate').forEach((b) => b.addEventListener('click', () => view.setRate(Number(b.dataset.r))));
+  $('#vecs').addEventListener('change', (e) => { view.vectors = e.target.checked; view.draw(); });
+  run(); store.log('lab', {});
+}

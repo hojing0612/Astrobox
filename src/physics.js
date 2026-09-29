@@ -30,17 +30,18 @@ export function elements(rx, ry, vx, vy, mu = MU_EARTH) {
 }
 
 /** 해석적 판정 (2체): 추락 / 궤도 / 이탈 */
-export function classify(rx, ry, vx, vy) {
-  const el = elements(rx, ry, vx, vy);
+export function classify(rx, ry, vx, vy, muScale = 1) {
+  const el = elements(rx, ry, vx, vy, MU_EARTH * muScale);
   if (el.eps >= 0) return { kind: 'escape', el };
   if (el.rp < R_EARTH + ATMO) return { kind: 'crash', el };
   return { kind: 'orbit', el };
 }
 
 /** 가속도 (지구 + 선택적으로 달). moonAngle: 달의 공전 위상(rad) */
-function accel(x, y, t, withMoon) {
+function accel(x, y, t, withMoon, muScale = 1) {
   const r3 = Math.pow(x * x + y * y, 1.5);
-  let ax = -MU_EARTH * x / r3, ay = -MU_EARTH * y / r3;
+  const mu = MU_EARTH * muScale;
+  let ax = -mu * x / r3, ay = -mu * y / r3;
   if (withMoon) {
     const th = OMEGA_MOON * t + withMoon.phase0;
     const mx = D_MOON * Math.cos(th), my = D_MOON * Math.sin(th);
@@ -55,8 +56,8 @@ function accel(x, y, t, withMoon) {
 }
 
 /** RK4 한 스텝 */
-function rk4(s, t, dt, withMoon) {
-  const f = (st, tt) => { const [ax, ay] = accel(st[0], st[1], tt, withMoon); return [st[2], st[3], ax, ay]; };
+function rk4(s, t, dt, withMoon, muScale = 1) {
+  const f = (st, tt) => { const [ax, ay] = accel(st[0], st[1], tt, withMoon, muScale); return [st[2], st[3], ax, ay]; };
   const k1 = f(s, t);
   const s2 = s.map((v, i) => v + dt / 2 * k1[i]); const k2 = f(s2, t + dt / 2);
   const s3 = s.map((v, i) => v + dt / 2 * k2[i]); const k3 = f(s3, t + dt / 2);
@@ -70,8 +71,8 @@ function rk4(s, t, dt, withMoon) {
  */
 export function propagate(x, y, vx, vy, opts = {}) {
   const tMax = opts.tMax ?? 6 * 3600;
-  const withMoon = opts.withMoon ?? null;
-  const pts = [[x, y]]; let s = [x, y, vx, vy]; let t = 0;
+  const withMoon = opts.withMoon ?? null; const muScale = opts.muScale ?? 1;
+  const pts = [[x, y, vx, vy, 0]]; let s = [x, y, vx, vy]; let t = 0;
   let minR = Math.hypot(x, y), maxR = minR, minMoonD = Infinity, moonAt = null, revolutions = 0, lastAngle = Math.atan2(y, x), accum = 0;
   let crashed = false, reachedMoon = false;
   const maxPoints = opts.maxPoints ?? 4000;
@@ -87,13 +88,13 @@ export function propagate(x, y, vx, vy, opts = {}) {
       if (d < minMoonD) { minMoonD = d; moonAt = { t, x: s[0], y: s[1], vx: s[2], vy: s[3], mx: D_MOON * Math.cos(th), my: D_MOON * Math.sin(th) }; }
       if (d < R_MOON + 50) { reachedMoon = true; if (opts.stopOnMoon !== false) break; }
     }
-    s = rk4(s, t, dt, withMoon); t += dt;
+    s = rk4(s, t, dt, withMoon, muScale); t += dt;
     const nr = Math.hypot(s[0], s[1]);
     if (nr < minR) minR = nr; if (nr > maxR) maxR = nr;
     const ang = Math.atan2(s[1], s[0]); let da = ang - lastAngle; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI; accum += da; lastAngle = ang;
     revolutions = Math.abs(accum) / (2 * Math.PI);
-    if (++stride % Math.max(1, Math.floor((tMax / dt) / maxPoints)) === 0) pts.push([s[0], s[1]]);
-    if (nr < R_EARTH + ATMO) { crashed = true; pts.push([s[0], s[1]]); if (opts.stopOnCrash !== false) break; }
+    if (++stride % Math.max(1, Math.floor((tMax / dt) / maxPoints)) === 0) pts.push([s[0], s[1], s[2], s[3], t]);
+    if (nr < R_EARTH + ATMO) { crashed = true; pts.push([s[0], s[1], s[2], s[3], t]); if (opts.stopOnCrash !== false) break; }
     if (nr > 3 * D_MOON) break; // 충분히 멀어짐
   }
   return { pts, t, minR, maxR, revolutions, crashed, reachedMoon, minMoonD, moonAt, final: s };
@@ -157,4 +158,10 @@ export function speedThresholds(h = 400) {
   const rp = R_EARTH + ATMO;
   const vCrash = Math.sqrt(2 * MU_EARTH * rp / (r * (r + rp)));
   return { vCrash, vc, ve };
+}
+
+/** 자유 실험실: 고도 h, 속력 v, 발사각 deg(0 = 옆방향, +는 바깥쪽), 지구 질량 배수 */
+export function freeStart(h, v, deg = 0) {
+  const a = deg * Math.PI / 180; // 접선 방향(+y)에서 바깥(+x)으로 기울임
+  return { x: R_EARTH + h, y: 0, vx: v * Math.sin(a), vy: v * Math.cos(a) };
 }
