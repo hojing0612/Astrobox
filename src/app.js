@@ -233,13 +233,12 @@ function renderStars() {
   setNav('stars');
   root.innerHTML = `<div class="wrap"><div class="content"><section class="panel"><div class="eyebrow">놀이 · 별 키우기</div><h1>별의 무게를 정하면 운명이 정해져요</h1>
     <div class="sim" style="aspect-ratio:1.35;min-height:300px"><canvas id="sv"></canvas><div class="tag" id="stage">주계열 · 지금 태양이 있는 단계</div><div class="sub" id="ssub">슬라이더로 별의 질량을 바꿔 봐요. 크기와 색이 바뀌어요. 그다음 어떻게 끝날지 맞히고 ▶ 을 눌러요</div></div>
-    <div id="starHistory"></div>
     <div class="row" style="margin:12px 0 4px"><b>별의 질량</b><input type="range" id="mass" min="0" max="1000" value="500"><output id="mout">1.0 태양</output></div>
     <div class="chips" id="famous">${FAMOUS_STARS.map((s) => `<button class="chip" data-m="${s.mass}" title="${esc(s.note)}">${esc(s.name)}</button>`).join('')}</div>
     <div class="row"><button class="primary" id="life" disabled>▶ 일생 빨리 감기</button></div>
     <div class="facts" id="facts"></div>
     <p class="small muted" style="margin-top:10px">근사 모형: 수명 ≈ 100억 년 × (질량)<sup>-2.5</sup>, 밝기 ≈ (질량)<sup>3.5</sup>. 경계값(0.08 · 8 · 20 태양질량)은 교과서 수준의 대략적인 값. 연출 시간은 실제 비율과 달라요.</p></section>
-    <section class="panel"><div class="coach-head"><img class="penguin" src="assets/penguin-128.png" width="56" height="56" alt=""><div><b>펭귄 코치</b><div class="small muted">먼저 맞혀 봐. 판정은 코드가 해요</div></div></div>
+    <section class="panel"><div id="starHistory"></div><div class="coach-head"><img class="penguin" src="assets/penguin-128.png" width="56" height="56" alt=""><div><b>펭귄 코치</b><div class="small muted">먼저 맞혀 봐. 판정은 코드가 해요</div></div></div>
     <div class="bubble ai" id="sbub">이 별은 어떻게 끝날까? 하나 고르고 ▶ 을 눌러 봐</div>
     <div id="choices">${FATE_CHOICES.map((c, i) => `<button class="choice" data-id="${c.id}"><b>${'ABCD'[i]}</b>${esc(c.label)}</button>`).join('')}</div>
     <div id="verdict"></div>
