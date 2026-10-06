@@ -24,8 +24,10 @@
 
 ```
 index.html            진입점(importmap, 상단 내비, 푸터 출처)
-styles.css            전체 스타일(CSS 변수 :root, 호버·효과 애니메이션 포함)
-src/app.js            해시 라우터: #home #m/<id> #lab #rocket #stars #timeline #report #account. 모든 화면 렌더
+styles.css            기존 탐구 화면 스타일
+portal.css            밝은 포털·계정·이용권 및 탐구 패널 공통 테마
+src/portal.js         홈·검색 카탈로그·탐구방·부모 가이드·이용권·계정·도움말
+src/app.js            해시 라우터: #home #explore #learning #parents #plans #help #m/<id> #lab #rocket #stars #timeline #report #account. 포털과 탐구 연결
 src/physics.js        RK4 2체/지구+달 3체, classify, propagate, hohmann, moonShot, swingBy, 상수
 src/missions.js       미션 m1~m4 정의(변수·선택지·run·judge·coachRules·hints·solution·transfer·lawCard)
 src/rocket.js         로켓 탐구 화면: 예측·연료 변경·발사·설명 카드·리포트 연결
@@ -86,3 +88,12 @@ DATABASE_URL=... SESSION_SECRET=... node dev.js   # 계정·서버 저장까지 
 4. 별의 생애·타임라인 결과를 부모 리포트 KPI에 반영(현재는 카드만)
 5. 펭귄 마스코트 출처 확인 또는 자체 제작 교체
 6. 모바일 실기기 3D 성능 점검(텍스처 2K/4K 자동 선택은 `render3d.js`의 `big`)
+
+## 밝은 포털 개편 (2026-10-06)
+
+- 주 메뉴 5개와 상단 계정/도움말, 활동 보조 메뉴, 모바일 전체 메뉴로 구분. 기존 활동 URL은 유지.
+- `#explore/<category>` 분류, 검색은 현재 주제와 교집합. `#learning`은 실제 로컬 기록만 표시.
+- `#account` 로그인 / `#account/signup` 가족 계정 생성. 기존 API를 유지하고 PIN 가림·필드 검증·오류 상태를 제공.
+- `#plans` 이용권/이용 내역 → `#plans/checkout` 무료 데모 신청 확인 → 완료. 실제 PG는 여전히 미연동. 서버 오류 시 로그인 이용권을 로컬 해금으로 대체하지 않음.
+- 비교 근거와 미확인 사이트: `docs/learning-portal-design.md`. 타사 자산·성과 수치를 사용하지 않음.
+- 테스트: `npm test`(물리 4 + 포털 검색/최근 활동/무료 신청/서버 오류 4). UI 검수 기록은 위 문서에 추가.

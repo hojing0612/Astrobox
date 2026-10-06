@@ -1,3 +1,4 @@
+import { createPortal } from './portal.js';
 import { mountRocket } from './rocket.js';
 // AstroBox 앱 — 해시 라우팅: #home · #m/<id> · #report · #stars · #timeline
 import { MISSIONS, byId } from './missions.js';
@@ -14,38 +15,35 @@ import { StarView } from './starlife.js';
 import * as P from './physics.js';
 
 const $ = (s, el = document) => el.querySelector(s);
-function makeView(canvas) { try { if (!document.createElement('canvas').getContext('webgl2') && !document.createElement('canvas').getContext('webgl')) throw new Error('no webgl'); return new OrbitView3D(canvas); } catch (e) { console.warn('3D 실패, 2D로', e); return new OrbitView(canvas); } }
+let activeView = null;
+function makeView(canvas) { try { if (!document.createElement('canvas').getContext('webgl2') && !document.createElement('canvas').getContext('webgl')) throw new Error('no webgl'); return activeView = new OrbitView3D(canvas); } catch (e) { console.warn('3D 실패, 2D로', e); return activeView = new OrbitView(canvas); } }
 const root = $('#root');
 const fmt = (n, d = 2) => Number(n).toFixed(d);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2200); }
-function setNav(active) { document.querySelectorAll('.nav a').forEach((a) => a.classList.toggle('active', a.getAttribute('href') === '#' + active)); }
-
-// ---------------- HOME
-function renderHome() {
-  setNav('home');
-  const sum = store.summary();
-  root.innerHTML = `
-  <section class="hero"><img class="penguin float" src="assets/penguin-256.png" alt="펭귄 우주비행사" width="150" height="150"><h1>Astro<span>Box</span></h1><p>질문 하나로 시작하는 나만의 우주 실험 — 예측하고, 하나만 바꿔 보고, 내 말로 설명한다</p>
-    <a class="primary" style="display:inline-block;width:auto;padding:12px 26px;text-decoration:none" href="#m/m1">첫 미션 시작 →</a></section>
-  <div class="wrap"><div class="grid">
-    ${MISSIONS.map((m) => { const s = sum.byMission[m.id]; const locked = !unlock.isUnlocked(m.id); return `<a class="card ${locked ? 'locked' : ''}" href="#m/${m.id}"><div class="n">${locked ? '🔒' : m.order}</div><h3>${esc(m.title)}</h3><p>${esc(m.intro)}</p><div class="tag">${locked ? '미션 팩 · 부모님이 열어주면 시작' : s ? `실험 ${s.experiments}회 · 카드 ${s.cards}장` : '아직 안 해봤어요'} · ${esc(m.concept)}</div></a>`; }).join('')}
-    <a class="card" href="#rocket"><div class="n" style="background:#ffb454">🚀</div><h3>로켓 발사 탐구</h3><p>연료량을 바꾸면 지구 궤도에 들어갈 수 있을까요? 예측하고 직접 발사해요.</p><div class="tag">3D 발사 · 단 분리 · 발사 탐구 카드</div></a>
-    <a class="card" href="#lab"><div class="n" style="background:#ffb454">⚗</div><h3>자유 실험실</h3><p>예측 없이 마음껏. 발사각·속력·고도·지구 질량을 바꾸고 속력·중력 화살표를 보며 놀기</p><div class="tag">PhET처럼 자유롭게 · 관찰 문장은 코드가 써줘요</div></a>
-    <a class="card" href="#stars"><div class="n" style="background:#5aa9ff">★</div><h3>별의 생애</h3><p>질량을 바꾸면 별의 운명이 어떻게 달라질까? 갈색왜성부터 블랙홀까지</p><div class="tag">보기 · 실험은 아니에요</div></a>
-    <a class="card" href="#timeline"><div class="n" style="background:#5aa9ff">∞</div><h3>우주 138억 년</h3><p>빅뱅부터 지금까지, 시간을 당겨 보기</p><div class="tag">보기 · 실험은 아니에요</div></a>
-    <a class="card" href="#account"><div class="n" style="background:#5aa9ff">🔑</div><h3>가족 계정</h3><p>코드 6자리 + PIN 4자리로 기록을 서버에 저장하고 다른 기기에서도 이어가요. 이메일·실명 없음</p><div class="tag" id="accTag">${account.current() ? `${esc(account.current().childName)} · ${account.current().code} 로그인됨` : '로그인 안 됨 · 지금은 이 브라우저에만 저장'}</div></a>
-    <a class="card" href="#report"><div class="n" style="background:#46d49a">👪</div><h3>부모 리포트</h3><p>아이가 한 활동과 설명이 어떻게 달라졌는지</p><div class="tag">이 브라우저에 저장된 기록만</div></a>
-  </div>
-  <p class="small muted" style="margin-top:18px">시뮬레이션은 지구·달 중력만 있는 단순 모형이에요(공기 저항 없음). 판정은 물리 계산이 하고, 코치는 답을 알려주지 않아요.</p></div>`;
+function updateShell() {
+  const h = location.hash.slice(1) || 'home';
+  const active = h.startsWith('m/') || ['rocket','lab','stars','timeline'].includes(h) ? 'explore' : h === 'report' ? 'parents' : h.split('/')[0];
+  document.querySelectorAll('.nav a').forEach(a => { const on = a.getAttribute('href') === '#' + active; a.classList.toggle('active', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  const activityNav = $('#activityNav'); activityNav.hidden = !(['rocket','lab','stars','timeline'].includes(h) || h.startsWith('m/'));
+  activityNav.querySelectorAll('a').forEach(a => { const on = a.hash === '#' + h || (a.hash === '#m/m1' && h.startsWith('m/')); if(on) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current'); });
+  $('#headerAccount').textContent = account.current() ? '가족 계정 관리' : '로그인';
+  $('#headerSignup').hidden = !!account.current();
 }
+function setNav() { updateShell(); }
+const portal = createPortal(root, toast, updateShell);
+const renderHome = () => portal.renderHome();
+const renderAccount = () => portal.renderAccount();
+$('#menuToggle').onclick = () => { const open = $('#menuToggle').getAttribute('aria-expanded') !== 'true'; $('#menuToggle').setAttribute('aria-expanded', String(open)); $('#menuToggle').setAttribute('aria-label', open ? '전체 메뉴 닫기' : '전체 메뉴 열기'); $('#mainNav').classList.toggle('is-open', open); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#menuToggle').getAttribute('aria-expanded') === 'true') { $('#menuToggle').click(); $('#menuToggle').focus(); } });
 
 // ---------------- MISSION
 async function renderMission(id) {
   const m = byId(id); if (!m) { location.hash = '#home'; return; }
   setNav('');
   if (!unlock.isUnlocked(m.id)) { await unlock.refresh(); }
+  if (root.dataset.route !== 'm/' + id) return;
   if (!unlock.isUnlocked(m.id)) { renderLocked(m); return; }
   const V = m.variable;
   const state = { choice: null, reason: '', value: V.default, result: null, judged: null, history: [], stage: 'predict', transfer: null, experiments: 0, turns: 0, explained: false };
@@ -165,7 +163,7 @@ async function renderMission(id) {
     box.scrollIntoView({ behavior: 'smooth', block: 'center' });
     $('#tchoices').addEventListener('click', (e) => { const b = e.target.closest('.choice'); if (!b) return; document.querySelectorAll('#tchoices .choice').forEach((x) => x.classList.toggle('active', x === b));
       const ok = b.dataset.id === T.correct; const res = T.run(); view.show(res, true); $('#obs').textContent = res.observation;
-      $('#tresult').innerHTML = `<b style="color:${ok ? '#46d49a' : '#ffb454'}">${ok ? '새 조건에서도 맞췄어요 — 개념이 옮겨 갔어요' : '새 조건에서는 달랐어요 — 왜 그런지 화면을 봐요'}</b><br>${esc(res.observation)}`;
+      $('#tresult').innerHTML = `<b style="color:${ok ? 'var(--green)' : 'var(--amber)'}">${ok ? '새 조건에서도 맞췄어요 — 개념이 옮겨 갔어요' : '새 조건에서는 달랐어요 — 왜 그런지 화면을 봐요'}</b><br>${esc(res.observation)}`;
       store.log('transfer', { mission: m.id, correct: ok, choice: b.dataset.id }); if (ok) { toast('🏅 법칙 카드 획득: ' + m.lawCard); confetti(window.innerWidth / 2, window.innerHeight / 3, 120); penguinReact('happy'); sound.win(); } }, { once: true });
   }
   $('#askParent').addEventListener('click', async () => { if (!next) { toast('마지막 미션이에요'); return; } if (unlock.isUnlocked(next.id)) { toast('이미 열려 있어요! 홈에서 시작해요'); return; } store.log('request', { mission: m.id, next: next.id }); const r = await unlock.requestNext(m.id, next.id); $('#askParent').textContent = '요청 보냄 · 부모님 확인 기다리는 중'; $('#askParent').disabled = true; toast(r.where === 'server' ? '부모님 화면으로 요청을 보냈어요' : '부모님 화면(이 기기)에 요청을 남겼어요'); });
@@ -176,11 +174,11 @@ function sliderToLog(V, s) { const v = Math.exp(Math.log(V.min) + (s / 1000) * (
 
 // ---------------- REPORT
 async function renderReport() {
-  setNav('report'); if (account.current()) await store.sync(); const s = store.summary();
+  setNav('report'); if (account.current()) await store.sync(); if (root.dataset.route !== 'report') return; const s = store.summary();
   const tot = (k) => Object.values(s.byMission).reduce((a, b) => a + (b[k] || 0), 0);
   const exp = tot('experiments'), coachN = tot('coach'), judged = tot('judged'), sup = tot('supported'), tr = tot('transfer'), trOk = tot('transferOk');
   root.innerHTML = `<div class="wrap" style="max-width:760px">
-    <div class="panel"><div class="eyebrow">부모 리포트 · 이 브라우저에 저장된 기록</div><h1>우주 탐구 기록</h1><p class="muted small">기록은 아이가 직접 쓴 문장과 코드의 판정 로그만 근거로 해요. 숫자는 전부 실제 활동에서 나온 값이에요. ${account.current() ? `☁️ ${esc(account.current().childName)}(${account.current().code}) 계정으로 서버에 저장됨${store.syncState.status === 'offline' ? ' — 지금은 서버 연결이 안 돼 이 기기 기록만 보여요' : ''}` : '이 브라우저에만 저장됨 — <a href="#account">가족 계정</a>을 만들면 다른 기기에서도 보여요'}</p>
+    <div class="panel"><div class="eyebrow">부모 리포트 · 아이의 탐구 과정</div><h1>우주 탐구 기록</h1><p class="muted small">기록은 아이가 직접 쓴 문장과 코드의 판정 로그만 근거로 해요. 숫자는 전부 실제 활동에서 나온 값이에요. ${account.current() ? `☁️ ${esc(account.current().childName)}(${account.current().code}) 계정으로 서버에 저장됨${store.syncState.status === 'offline' ? ' — 지금은 서버 연결이 안 돼 이 기기 기록만 보여요' : ''}` : '이 브라우저에만 저장됨 — <a href="#account">가족 계정</a>을 만들면 다른 기기에서도 보여요'}</p>
     ${exp === 0 ? `<div class="empty">아직 기록이 없어요. 첫 미션을 해 보면 여기에 쌓여요.</div>` : `
     <div class="kpis"><div class="kpi"><b>${s.missions.length}</b><span>시작한 미션</span></div><div class="kpi"><b>${exp}</b><span>직접 실험</span></div><div class="kpi"><b>${s.cards.length}</b><span>설명 카드</span></div></div>
     <div class="bar"><span>예측이 맞은 실험</span><div class="track"><i style="width:${judged ? Math.round(100 * sup / judged) : 0}%"></i></div><span>${sup} / ${judged}</span></div>
@@ -191,29 +189,38 @@ async function renderReport() {
     ${s.cards.length ? s.cards.slice().reverse().map((c) => `<div class="law"><div class="m">${esc(c.title)} · ${new Date(c.t).toLocaleDateString('ko-KR')}</div><div class="r"><div class="k">처음 생각</div><div>${esc(c.initial)}</div></div><div class="r"><div class="k">관찰</div><div>${esc(c.observation)}</div></div><div class="r"><div class="k">다시 설명</div><div>${esc(c.explanation)}</div></div>${c.next ? `<div class="r"><div class="k">다음 확인</div><div>${esc(c.next)}</div></div>` : ''}</div>`).join('') : '<div class="empty">아직 카드가 없어요</div>'}
     <h2 style="margin-top:18px">미션별</h2>
     ${s.missions.map((id) => { const m = byId(id); const b = s.byMission[id]; return `<div class="bar"><span>${esc(m?.title || (id === 'rocket' ? '로켓 발사 탐구' : id))}</span><div class="track"><i style="width:${Math.min(100, b.experiments * 10)}%"></i></div><span>실험 ${b.experiments}</span></div>`; }).join('')}
-    <div id="parentBox"></div>
-    <div class="next" style="margin-top:18px"><div class="t">다음 미션</div><div class="m"><div class="ic">🚀</div><div><div class="n">${esc((MISSIONS.find((m) => !s.byMission[m.id]) || MISSIONS[0]).title)}</div><div class="s">아이 화면의 「부모님께 요청하기」에서 이어져요</div></div></div><button class="primary" onclick="location.hash='#home'">다음 미션 열기 (데모 · 결제 없음)</button></div>`}
-    <p class="small muted" style="margin-top:16px">기록 지우기: <button class="secondary" id="reset" style="padding:4px 10px">초기화</button></p>
+
+    <div class="next" style="margin-top:18px"><div class="t">다음 미션</div><div class="m"><div class="ic">🚀</div><div><div class="n">${esc((MISSIONS.find((m) => !s.byMission[m.id]) || MISSIONS[0]).title)}</div><div class="s">아이 화면의 「부모님께 요청하기」에서 이어져요</div></div></div><button class="primary" onclick="location.hash='#explore'">다른 탐구 찾아보기</button></div>`}
+    <div id="parentBox"></div><p class="small muted" style="margin-top:16px">기록 지우기: <button class="secondary" id="reset" style="padding:4px 10px">초기화</button></p>
     </div></div>`;
   $('#reset')?.addEventListener('click', () => { if (confirm('이 브라우저의 기록을 모두 지울까요?')) { store.reset(); renderReport(); } });
   renderParentBox();
 }
 async function renderParentBox() {
   const box = $('#parentBox'); if (!box) return;
-  const r = await unlock.fetchRequests(); const pending = r.requests.filter((x) => x.status === 'pending'); const pk = unlock.PACKS['pack-1']; const has = unlock.isUnlocked('m2');
+  const r = await unlock.fetchRequests(); if (!box.isConnected) return; const pending = r.requests.filter((x) => x.status === 'pending'); const pk = unlock.PACKS['pack-1']; const has = unlock.isUnlocked('m2');
   box.innerHTML = `<h2 style="margin-top:18px">아이의 요청 ${pending.length ? `<span style="color:var(--accent)">· ${pending.length}건</span>` : ''}</h2>
     ${pending.length ? pending.map((q) => `<div class="law"><div class="m">${esc(byId(q.mission)?.title || q.mission)} 를 마치고 → <b>${esc(byId(q.next)?.title || q.next)}</b> 를 열어 달래요 · ${new Date(q.t).toLocaleString('ko-KR')}</div>
       <div style="display:flex;gap:8px;margin-top:8px"><button class="primary" data-approve="${q.id}" style="width:auto;padding:8px 14px">${has ? '열어주기' : '미션 팩 열고 승인'}</button><button class="secondary" data-decline="${q.id}">나중에</button></div></div>`).join('') : '<div class="empty small">아직 요청이 없어요. 아이가 미션을 마치면 「부모님께 요청하기」로 여기에 와요.</div>'}
-    <div class="law" style="margin-top:12px"><div class="m">${esc(pk.title)} ${has ? '· ✅ 열림' : ''}</div><div class="r"><div class="k">포함</div><div>${pk.missions.map((id) => esc(byId(id)?.title || id)).join(' · ')} + 코치 되묻기 + 이해 기록</div></div><div class="r"><div class="k">가격</div><div>${esc(pk.note)} — 실제 청구 없음. 결제 방식은 검증 뒤 붙여요</div></div>${has ? '' : `<button class="primary" id="buyPack" style="margin-top:8px">미션 팩 열기 (데모 결제)</button>`}</div>
+    <div class="law" style="margin-top:12px"><div class="m">${esc(pk.title)} ${has ? '· ✅ 열림' : ''}</div><div class="r"><div class="k">포함</div><div>${pk.missions.map((id) => esc(byId(id)?.title || id)).join(' · ')} + 코치 되묻기 + 이해 기록</div></div><div class="r"><div class="k">가격</div><div>${esc(pk.note)} — 실제 청구 없음. 결제 방식은 검증 뒤 붙여요</div></div>${has ? '' : `<button class="primary" id="buyPack" style="margin-top:8px">미션 팩 열기 (무료 데모)</button>`}</div>
     <p class="small muted">${r.where === 'server' ? '☁️ 요청·권한은 가족 계정 서버에 저장돼 아이 기기에도 바로 반영돼요' : '이 기기 안에서만 동작해요 — 가족 계정으로 로그인하면 아이 기기와 연결돼요'}</p>`;
-  box.querySelectorAll('[data-approve]').forEach((b) => b.addEventListener('click', async () => { if (!has) await unlock.checkout('pack-1'); await unlock.decide(b.dataset.approve.match(/^\d+$/) ? Number(b.dataset.approve) : b.dataset.approve, 'approve'); store.log('approve', { by: 'parent' }); toast('열어줬어요'); renderParentBox(); }));
-  box.querySelectorAll('[data-decline]').forEach((b) => b.addEventListener('click', async () => { await unlock.decide(b.dataset.decline.match(/^\d+$/) ? Number(b.dataset.decline) : b.dataset.decline, 'decline'); renderParentBox(); }));
-  $('#buyPack')?.addEventListener('click', async () => { const o = await unlock.checkout('pack-1'); store.log('order', { pack: 'pack-1', where: o.where }); toast('미션 팩이 열렸어요 (데모 · 청구 없음)'); renderParentBox(); });
+  box.querySelectorAll('[data-approve]').forEach(b => b.addEventListener('click', async () => {
+    if (!has) { location.hash = '#plans/checkout'; return; }
+    b.disabled = true;
+    try { await unlock.decide(b.dataset.approve.match(/^\d+$/) ? Number(b.dataset.approve) : b.dataset.approve, 'approve'); store.log('approve', { by: 'parent' }); if (box.isConnected) { toast('열어줬어요'); renderParentBox(); } }
+    catch { if (b.isConnected) { b.disabled = false; toast('요청을 처리하지 못했어요. 다시 시도해 주세요.'); } }
+  }));
+  box.querySelectorAll('[data-decline]').forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { await unlock.decide(b.dataset.decline.match(/^\d+$/) ? Number(b.dataset.decline) : b.dataset.decline, 'decline'); if (box.isConnected) renderParentBox(); }
+    catch { if (b.isConnected) { b.disabled = false; toast('요청을 처리하지 못했어요. 다시 시도해 주세요.'); } }
+  }));
+  $('#buyPack')?.addEventListener('click', () => { location.hash = '#plans/checkout'; });
 }
 function renderLocked(m) {
   root.innerHTML = `<div class="wrap" style="max-width:640px"><div class="panel"><div class="eyebrow">🔒 미션 ${m.order} · 미션 팩</div><h1>${esc(m.title)}</h1><p class="muted">${esc(m.intro)}</p>
-    <div class="law"><div class="m">이 미션은 미션 팩에 들어 있어요</div><div class="r"><div class="k">아이</div><div>미션 1을 마치고 「부모님께 요청하기」를 눌러요</div></div><div class="r"><div class="k">부모님</div><div>부모 리포트에서 요청을 보고 열어줘요. 가격·시간 제한 없음</div></div></div>
-    <div style="display:flex;gap:8px;margin-top:12px"><a class="primary" style="text-decoration:none;text-align:center" href="#m/m1">미션 1로</a><a class="secondary" style="text-decoration:none;text-align:center" href="#report">부모 리포트</a></div></div></div>`;
+    <div class="law"><div class="m">이 미션은 미션 팩에 들어 있어요</div><div class="r"><div class="k">아이</div><div>미션 1을 마치고 「부모님께 요청하기」를 눌러요</div></div><div class="r"><div class="k">부모님</div><div>이용권 페이지에서 무료 데모 미션 팩을 열어주세요. 실제 청구는 없어요.</div></div></div>
+    <div style="display:flex;gap:8px;margin-top:12px"><a class="primary" style="text-decoration:none;text-align:center" href="#m/m1">미션 1로</a><a class="secondary" style="text-decoration:none;text-align:center" href="#plans">이용권 안내</a></div></div></div>`;
 }
 
 // ---------------- CONTENT: 별의 생애 — 별 키우기(예측 → 일생 빨리 감기 → 판정 → 별 도감)
@@ -234,7 +241,7 @@ function renderStars() {
     <div id="verdict"></div>
     <div class="law"><div class="m">별 도감 · 4가지 운명을 다 모아 봐</div><div class="dex" id="dex"></div></div>
     <div class="law"><div class="m">태양의 미래</div><div class="r"><div class="k">지금</div><div>주계열 · 46억 년 살았고 50억 년쯤 더 살아요</div></div><div class="r"><div class="k">그다음</div><div>적색거성 → 행성상 성운 → 백색왜성. 폭발하지 않아요(8 태양질량보다 가벼워서)</div></div></div></section></div></div>`;
-  const view = new StarView($('#sv')); let m = 1, choice = null, busy = false;
+  const view = activeView = new StarView($('#sv')); let m = 1, choice = null, busy = false;
   const dexDraw = () => { const got = dexLoad(); $('#dex').innerHTML = ['none', 'wd', 'ns', 'bh'].map((k) => `<div class="d ${got.includes(k) ? 'got' : ''}"><i>${FATE_EMOJI[k]}</i>${FATE_NAME[k]}</div>`).join(''); };
   const facts = () => { const f = starFate(m); const L = f.lifetime; const life = !L ? '핵융합이 안 켜져요' : L >= 1e12 ? `${(L / 1e12).toFixed(0)}조 년` : L >= 1e8 ? `${(L / 1e8).toFixed(L < 1e9 ? 1 : 0)}억 년` : `${(L / 1e6).toFixed(0)}백만 년`;
     const cmp = !L ? '' : L > AGE ? `우주 나이(138억 년)의 ${(L / AGE).toFixed(0)}배 — 아직 죽은 적 없음` : L > 1e9 ? `태양 수명(100억 년)의 ${(L / 1e10).toFixed(2)}배` : L > 1.6e8 ? `공룡 시대(1.6억 년)의 ${(L / 1.6e8).toFixed(1)}배` : `공룡 시대(1.6억 년)의 ${(L / 1.6e8).toFixed(2)}배 — 눈 깜짝할 새`;
@@ -272,7 +279,7 @@ function renderTimeline() {
     <div id="enow"></div>
     <div class="coach-head" style="margin-top:14px"><img class="penguin" src="assets/penguin-128.png" width="56" height="56" alt=""><div><b>펭귄 코치</b><div class="small muted">맞혀 봐 · 3문제</div></div></div>
     <div class="quiz" id="quiz"></div></section></div></div>`;
-  const view = new CosmosView($('#cv2')); let lastEra = -1;
+  const view = activeView = new CosmosView($('#cv2')); let lastEra = -1;
   const show = (t, fromPlay = false) => { const i = KID_EVENTS.reduce((a, e, k) => (e.t <= t ? k : a), 0); const e = KID_EVENTS[i]; const cal = cosmicCalendar(t);
     $('#tout').textContent = fmtT(t); $('#cdate').textContent = `${cal.month}월 ${cal.day}일`; $('#ctime').textContent = cal.text.replace(/^\d+월 \d+일 /, '');
     if (i !== lastEra) { lastEra = i; $('#era').textContent = `${e.emoji} ${e.label}`; $('#era').classList.remove('pop'); void $('#era').offsetWidth; $('#era').classList.add('pop'); $('#tsub').textContent = `${e.desc} — 펭귄: "${e.bubble}"`; $('#enow').innerHTML = `<div class="law"><div class="m">${e.emoji} ${esc(e.label)}</div><div class="r"><div class="k">언제</div><div>${esc(e.desc)}</div></div><div class="r"><div class="k">달력으로</div><div>${esc(cal.text)}</div></div></div>`; document.querySelectorAll('#jumps .chip').forEach((c) => c.classList.toggle('on', Number(c.dataset.i) === i)); if (fromPlay) sound.pop(); } };
@@ -293,8 +300,22 @@ function renderTimeline() {
 let disposeRocket = null;
 function renderRocket() { setNav('rocket'); disposeRocket = mountRocket(root); }
 function route() {
+  if (activeView) { activeView.dispose(); activeView = null; }
   if (disposeRocket) { disposeRocket(); disposeRocket = null; }
   const h = location.hash.replace(/^#/, '') || 'home';
+  updateShell(); $('#menuToggle').setAttribute('aria-expanded','false'); $('#menuToggle').setAttribute('aria-label','전체 메뉴 열기'); $('#mainNav').classList.remove('is-open');
+  root.dataset.route = h;
+  root.innerHTML = '<div class="route-loading" role="status">탐구를 준비하고 있어요…</div>';
+  window.scrollTo({top:0,behavior:'instant'});
+  const titles = {home:'탐구 홈',explore:'탐구 둘러보기',learning:'나의 탐구방',parents:'부모님 가이드',plans:'이용권',account:'가족 계정',help:'이용 안내',rocket:'로켓 발사',report:'부모 리포트',stars:'별 키우기',timeline:'우주 시간 여행',lab:'자유 실험실'};
+  document.title = (titles[h.split('/')[0]] || '궤도 미션') + ' | AstroBox';
+  if (h === 'root') { root.focus(); return renderHome(); }
+  if (h === 'explore' || h.startsWith('explore/')) return portal.renderExplore();
+  if (h === 'learning') return portal.renderLearning();
+  if (h === 'parents') return portal.renderParents();
+  if (h === 'help') return portal.renderHelp();
+  if (h === 'plans' || h === 'plans/checkout') return portal.renderPlans(h.endsWith('/checkout'));
+  if (h === 'account/signup') return portal.renderAccount('signup');
   if (h.startsWith('m/')) return renderMission(h.slice(2));
   if (h === 'rocket') return renderRocket();
   if (h === 'lab') return renderLab();
@@ -304,6 +325,7 @@ function route() {
   if (h === 'timeline') return renderTimeline();
   renderHome();
 }
+document.querySelector('.skip-link').onclick = e => { e.preventDefault(); root.focus(); root.scrollIntoView({block:'start'}); };
 window.addEventListener('hashchange', route); route();
 
 // ---------------- FREE LAB
@@ -337,21 +359,4 @@ function renderLab() {
 }
 
 // ---------------- ACCOUNT
-async function renderAccount() {
-  setNav('account'); const acc = account.current();
-  const ok = await account.available();
-  root.innerHTML = `<div class="wrap" style="max-width:640px"><div class="panel"><div class="eyebrow">가족 계정 · 코드 + PIN</div><h1>기록을 서버에 저장하기</h1>
-    <p class="muted small">이메일·실명·전화번호를 받지 않아요. 가족 코드 6자리와 PIN 4자리만으로 로그인하고, 아이 이름은 별명이면 충분해요. 로그인하지 않아도 이 브라우저에는 기록이 남아요.</p>
-    ${!ok ? '<div class="empty">지금은 서버가 연결돼 있지 않아요. 기록은 이 브라우저에만 저장돼요.</div>' : ''}
-    ${acc ? `<div class="law"><div class="m">로그인됨</div><div class="r"><div class="k">아이</div><div>${esc(acc.childName)}</div></div><div class="r"><div class="k">가족 코드</div><div><b style="font-size:1.3rem;letter-spacing:.12em">${esc(acc.code)}</b> — 다른 기기에서 이 코드와 PIN으로 로그인</div></div></div>
-      <div style="display:flex;gap:8px"><button class="primary" id="syncNow">지금 동기화</button><button class="secondary" id="logout">로그아웃</button></div><p class="small muted" id="syncMsg"></p>` : `
-      <div class="content"><section class="law"><div class="m">새로 만들기</div><div class="r"><div class="k">아이 별명</div><input id="cName" class="reason" style="min-height:0;padding:8px" maxlength="12" placeholder="예: 지우"></div><div class="r"><div class="k">PIN 4자리</div><input id="cPin" class="reason" style="min-height:0;padding:8px" inputmode="numeric" maxlength="4" placeholder="숫자 4자리"></div><button class="primary" id="createBtn" ${ok ? '' : 'disabled'}>가족 코드 만들기</button></section>
-      <section class="law"><div class="m">이미 코드가 있어요</div><div class="r"><div class="k">가족 코드</div><input id="lCode" class="reason" style="min-height:0;padding:8px;text-transform:uppercase" maxlength="6" placeholder="6자리"></div><div class="r"><div class="k">PIN</div><input id="lPin" class="reason" style="min-height:0;padding:8px" inputmode="numeric" maxlength="4" placeholder="숫자 4자리"></div><button class="secondary" id="loginBtn" style="width:100%" ${ok ? '' : 'disabled'}>로그인</button></section></div><p class="small muted" id="accMsg"></p>`}
-    </div></div>`;
-  const msg = (t) => { const el = $('#accMsg') || $('#syncMsg'); if (el) el.textContent = t; };
-  $('#createBtn')?.addEventListener('click', async () => { try { const d = await account.create($('#cName').value, $('#cPin').value); await store.sync(); toast(`가족 코드 ${d.code} — 꼭 적어 두세요`); renderAccount(); } catch (e) { msg(e.message); } });
-  $('#loginBtn')?.addEventListener('click', async () => { try { await account.login($('#lCode').value, $('#lPin').value); await store.sync(); toast('로그인했어요. 기록을 합쳤어요'); renderAccount(); } catch (e) { msg(e.message); } });
-  $('#logout')?.addEventListener('click', () => { account.logout(); toast('로그아웃했어요. 이 브라우저 기록은 남아 있어요'); renderAccount(); });
-  $('#syncNow')?.addEventListener('click', async () => { const r = await store.sync(); msg(r ? `동기화 완료 · 실험 ${r.events.filter((e) => e.type === 'experiment').length}건 · 카드 ${r.cards.length}장` : `동기화 실패: ${store.syncState.error || store.syncState.status}`); });
-}
 if (account.current()) store.sync().catch(() => {});

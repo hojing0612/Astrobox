@@ -28,9 +28,16 @@ export async function decide(id, action) {
 }
 /** 결제(데모): 서버 주문 생성 → 권한. 서버 없으면 로컬 해금 */
 export async function checkout(pack) {
-  const d = await post('/api/pay', { action: 'checkout', pack }).catch(() => null);
+  if (!PACKS[pack]) throw new Error('알 수 없는 이용권이에요.');
+  const d = await post('/api/pay', { action: 'checkout', pack });
   if (d) { applyEntitlements(d.entitlements); return { where: 'server', orders: d.orders }; }
-  grantLocal(pack); const l = local(); l.requests.forEach((r) => { if (r.status === 'pending') { r.status = 'approved'; r.decided_at = Date.now(); } }); saveLocal(l); return { where: 'local' };
+  if (current()) throw new Error('계정 서버에 연결할 수 없어요. 잠시 후 다시 시도해 주세요.');
+  grantLocal(pack); const l = local(); l.orders ||= []; l.orders.push({ id: 'local-' + Date.now(), pack, amount: 0, t: Date.now(), where: 'local' }); l.requests.forEach((r) => { if (r.status === 'pending') { r.status = 'approved'; r.decided_at = Date.now(); } }); saveLocal(l); return { where: 'local' };
 }
 function applyEntitlements(ents) { if (!Array.isArray(ents)) return; const d = local(); for (const e of ents) if (!d.packs.includes(e.pack)) d.packs.push(e.pack); saveLocal(d); }
 export async function refresh() { await fetchRequests().catch(() => {}); }
+
+export async function orderStatus() {
+  if (current()) { const d = await post('/api/pay', { action: 'status' }); if (!d) throw new Error('이용 내역을 불러오지 못했어요.'); applyEntitlements(d.entitlements); return { where: 'server', orders: d.orders || [] }; }
+  return { where: 'local', orders: local().orders || [] };
+}

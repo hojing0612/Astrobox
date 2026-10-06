@@ -11,15 +11,16 @@ export class CosmosView {
     this.stars = Array.from({ length: 220 }, (_, i) => ({ x: rnd(i), y: rnd(i + 500), r: 0.5 + rnd(i + 900) * 1.4, p: rnd(i + 1300) * 6.28 }));
     this.galaxies = Array.from({ length: 7 }, (_, i) => ({ x: 0.12 + rnd(i + 40) * 0.76, y: 0.15 + rnd(i + 80) * 0.6, s: 0.5 + rnd(i + 120) * 0.8, rot: rnd(i + 160) * 6.28, born: 4e8 * (1 + i * 0.9), spin: (rnd(i + 200) > 0.5 ? 1 : -1) * (0.15 + rnd(i + 240) * 0.2) }));
     this.firstStars = Array.from({ length: 14 }, (_, i) => ({ x: 0.08 + rnd(i + 300) * 0.84, y: 0.1 + rnd(i + 340) * 0.7, born: 1e8 * (1 + 1.8 * rnd(i + 380)), r: 2.5 + rnd(i + 420) * 3 }));
-    this.resize(); window.addEventListener('resize', () => this.resize()); this.last = performance.now(); this.loop();
+    this.resize(); this.onResize = () => this.resize(); window.addEventListener('resize', this.onResize); this.last = performance.now(); this.loop();
   }
+  dispose() { this.disposed = true; this.playing = false; cancelAnimationFrame(this.anim); window.removeEventListener('resize', this.onResize); this.onTick = this.onDone = this.onStage = null; }
   resize() { const r = this.c.getBoundingClientRect(); const dpr = Math.min(2, window.devicePixelRatio || 1); this.c.width = Math.max(1, r.width * dpr); this.c.height = Math.max(1, r.height * dpr); this.g.setTransform(dpr, 0, 0, dpr, 0, 0); this.w = r.width; this.h = r.height; }
   setTime(t) { this.t = clamp(t, 0, AGE); }
   /** 자동 시간 여행: 로그 눈금으로 s=0→1 (약 14초) */
   play() { this.playing = true; this.s = 0; }
   stop() { this.playing = false; }
   loop() {
-    requestAnimationFrame(() => this.loop()); const now = performance.now(); const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now; this.frame += dt;
+    if (this.disposed) return; this.anim = requestAnimationFrame(() => this.loop()); const now = performance.now(); const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now; this.frame += dt;
     if (this.playing) { this.s = clamp(this.s + dt / 18); this.t = sliderT(this.s); if (this.s >= 1) { this.t = AGE; this.playing = false; this.onDone && this.onDone(); } this.onTick && this.onTick(this.t, this.s); }
     this.draw();
   }

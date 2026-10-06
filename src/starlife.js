@@ -22,13 +22,14 @@ export class StarView {
   constructor(canvas) {
     this.c = canvas; this.g = canvas.getContext('2d'); this.m = 1; this.p = null; this.playing = false; this.onStage = null; this.onDone = null; this.frame = 0; this.parts = [];
     this.bgStars = Array.from({ length: 160 }, (_, i) => ({ x: rnd(i), y: rnd(i + 500), r: 0.4 + rnd(i + 900) * 1.2, p: rnd(i + 1300) * 6.28 }));
-    this.resize(); window.addEventListener('resize', () => this.resize()); this.last = performance.now(); this.loop();
+    this.resize(); this.onResize = () => this.resize(); window.addEventListener('resize', this.onResize); this.last = performance.now(); this.loop();
   }
+  dispose() { this.disposed = true; this.playing = false; cancelAnimationFrame(this.anim); window.removeEventListener('resize', this.onResize); this.onTick = this.onDone = this.onStage = null; }
   resize() { const r = this.c.getBoundingClientRect(); const dpr = Math.min(2, window.devicePixelRatio || 1); this.c.width = Math.max(1, r.width * dpr); this.c.height = Math.max(1, r.height * dpr); this.g.setTransform(dpr, 0, 0, dpr, 0, 0); this.w = r.width; this.h = r.height; }
   setMass(m) { this.m = m; if (!this.playing) { this.p = null; this.parts = []; } }
   play() { this.playing = true; this.p = 0; this.parts = []; this.stageIdx = -1; this.boomDone = false; }
   stop() { this.playing = false; this.p = null; this.parts = []; }
-  loop() { requestAnimationFrame(() => this.loop()); const now = performance.now(); const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now; this.frame += dt;
+  loop() { if (this.disposed) return; this.anim = requestAnimationFrame(() => this.loop()); const now = performance.now(); const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now; this.frame += dt;
     if (this.playing) { this.p = clamp(this.p + dt / 11); const st = stagesFor(this.m); const i = st.findIndex((s) => this.p >= s.from && this.p < s.to + 1e-9); if (i !== this.stageIdx && i >= 0) { this.stageIdx = i; this.onStage && this.onStage(st[i], i, st.length); } if (this.p >= 1) { this.playing = false; this.onDone && this.onDone(); } }
     this.draw(); }
   draw() {

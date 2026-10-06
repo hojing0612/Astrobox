@@ -2,14 +2,15 @@
 import * as P from './physics.js';
 
 export class OrbitView {
-  constructor(canvas) { this.c = canvas; this.ctx = canvas.getContext('2d'); this.result = null; this.simTime = 0; this.playing = false; this.speed = 60; this.vectors = true; this.anim = null; this.last = 0; this.resize(); window.addEventListener('resize', () => { this.resize(); this.draw(); }); }
+  constructor(canvas) { this.c = canvas; this.ctx = canvas.getContext('2d'); this.result = null; this.simTime = 0; this.playing = false; this.speed = 60; this.vectors = true; this.anim = null; this.last = 0; this.resize(); this.onResize = () => { this.resize(); this.draw(); }; window.addEventListener('resize', this.onResize); }
+  dispose() { this.disposed = true; this.playing = false; cancelAnimationFrame(this.anim); window.removeEventListener('resize', this.onResize); }
   resize() { const dpr = window.devicePixelRatio || 1; const r = this.c.getBoundingClientRect(); this.c.width = Math.max(1, r.width * dpr); this.c.height = Math.max(1, r.height * dpr); this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); this.w = r.width; this.h = r.height; }
   /** 결과를 올리고 처음부터 재생. speed = 시뮬 초/실제 초 */
   show(result, play = true) { this.result = result; this.simTime = 0; this.playing = play; const total = result.sim.t; this.speed = Math.max(30, total / 12); // 12초 안에 한 번 보여주기
     this.loop(); if (!play) this.draw(); }
   play() { this.playing = true; this.loop(); } pause() { this.playing = false; } toggle() { this.playing ? this.pause() : this.play(); return this.playing; }
   setRate(mult) { this.rate = mult; } // 1, 3, 10 배
-  loop() { if (this.anim) cancelAnimationFrame(this.anim); this.last = performance.now(); const step = (now) => { const dt = (now - this.last) / 1000; this.last = now; if (this.playing) { this.simTime += dt * this.speed * (this.rate || 1); const total = this.result.sim.t; if (this.simTime > total) this.simTime = (this.result.kind === 'orbit' && !this.result.sim.crashed) ? this.simTime % total : total; } this.draw(); if (this.playing) this.anim = requestAnimationFrame(step); }; this.anim = requestAnimationFrame(step); }
+  loop() { if (this.anim) cancelAnimationFrame(this.anim); this.last = performance.now(); const step = (now) => { if (this.disposed) return; const dt = (now - this.last) / 1000; this.last = now; if (this.playing) { this.simTime += dt * this.speed * (this.rate || 1); const total = this.result.sim.t; if (this.simTime > total) this.simTime = (this.result.kind === 'orbit' && !this.result.sim.crashed) ? this.simTime % total : total; } this.draw(); if (this.playing) this.anim = requestAnimationFrame(step); }; this.anim = requestAnimationFrame(step); }
   /** 현재 시각의 상태(보간) */
   stateAt(t) { const pts = this.result.sim.pts; let lo = 0, hi = pts.length - 1; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (pts[mid][4] <= t) lo = mid; else hi = mid; } const a = pts[lo], b = pts[hi]; const f = b[4] > a[4] ? Math.min(1, Math.max(0, (t - a[4]) / (b[4] - a[4]))) : 0; return { x: a[0] + (b[0] - a[0]) * f, y: a[1] + (b[1] - a[1]) * f, vx: a[2] + (b[2] - a[2]) * f, vy: a[3] + (b[3] - a[3]) * f, idx: lo }; }
   draw() {
