@@ -1,5 +1,7 @@
 // 별의 생애 — 별 키우기 장면(Canvas 2D). 질량에 따라 색·크기가 바뀌고, '일생 빨리 감기'로 운명(백색왜성·중성자별·블랙홀·갈색왜성)을 애니메이션으로 본다.
 import { fateId, lifetimeYears } from './content.js';
+// 각 단계에서 설명을 읽을 시간을 확보해요. 실제 천체의 시간 비율과는 다른 연출 시간이에요.
+export const STAGE_SECONDS = 8;
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const rnd = (i) => ((Math.sin(i * 12.9898 + 78.233) * 43758.5453) % 1 + 1) % 1;
 const lerp = (a, b, u) => a + (b - a) * u;
@@ -30,7 +32,7 @@ export class StarView {
   play() { this.playing = true; this.p = 0; this.parts = []; this.stageIdx = -1; this.boomDone = false; }
   stop() { this.playing = false; this.p = null; this.parts = []; }
   loop() { if (this.disposed) return; this.anim = requestAnimationFrame(() => this.loop()); const now = performance.now(); const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now; this.frame += dt;
-    if (this.playing) { this.p = clamp(this.p + dt / 11); const st = stagesFor(this.m); const i = st.findIndex((s) => this.p >= s.from && this.p < s.to + 1e-9); if (i !== this.stageIdx && i >= 0) { this.stageIdx = i; this.onStage && this.onStage(st[i], i, st.length); } if (this.p >= 1) { this.playing = false; this.onDone && this.onDone(); } }
+    if (this.playing) { const st = stagesFor(this.m); const current = st.find(s => this.p >= s.from && this.p < s.to) || st[st.length - 1]; this.p = clamp(this.p + dt * (current.to - current.from) / STAGE_SECONDS); const i = st.findIndex((s) => this.p >= s.from && this.p < s.to + 1e-9); if (i !== this.stageIdx && i >= 0) { this.stageIdx = i; this.onStage && this.onStage(st[i], i, st.length); } if (this.p >= 1) { this.playing = false; this.onDone && this.onDone(); } }
     this.draw(); }
   draw() {
     const g = this.g, w = this.w, h = this.h, m = this.m, f = this.frame; g.clearRect(0, 0, w, h);
