@@ -94,3 +94,62 @@ export const ROCKET_MILESTONES = {
   crash: '지표면에 닿았어요. 조건을 바꿔 다시 도전해요.',
 };
 export const ROCKET_OUTCOMES = { orbit: '지구를 계속 도는 궤도에 들어갔어요!', fail: '이번엔 궤도에 들어가지 못했어요.' };
+
+
+// 별의 단계별 실제 관측 자료. 색은 관측 파장/영상 처리에 따라 달라요.
+export const STAR_PHOTOS = {
+  "proto": {
+    "source": "https://science.nasa.gov/asset/webb/l1527-and-protostar-nircam-image/",
+    "image": "https://assets.science.nasa.gov/content/dam/science/missions/webb/science/2022/11/STScI-01GGWD12YEES5K5163RJFYQT20.png/jcr:content/renditions/cq5dam.web.1280.1280.png",
+    "caption": "원시별 L1527 · 적외선 관측",
+    "credit": "NASA, ESA, CSA, STScI"
+  },
+  "giant": {
+    "source": "https://science.nasa.gov/asset/hubble/red-giant-star-mira/",
+    "image": "https://assets.science.nasa.gov/content/dam/science/missions/hubble/releases/1997/08/STScI-01EVVK9K351FBCZ25BSPPV7Y5F.tif/jcr:content/renditions/cq5dam.web.1280.1280.jpeg",
+    "caption": "적색거성 미라 · 허블 관측",
+    "credit": "Margarita Karovska (CfA), NASA"
+  },
+  "ring": {
+    "source": "https://science.nasa.gov/asset/hubble/hubble-captures-a-ring/",
+    "image": "https://assets.science.nasa.gov/content/dam/science/missions/hubble/releases/2013/05/STScI-01EVVCKCGPNSBA0SFGBZX5D2VR.tif/jcr:content/renditions/cq5dam.web.1280.1280.jpeg",
+    "caption": "고리 성운 · 가운데 작은 점이 백색왜성이에요",
+    "credit": "NASA, ESA, Hubble Heritage (STScI/AURA)-ESA/Hubble Collaboration"
+  },
+  "ns": {
+    "source": "https://science.nasa.gov/asset/hubble/core-of-the-crab-nebula/",
+    "image": "https://assets.science.nasa.gov/content/dam/science/missions/hubble/releases/2016/07/STScI-01EVVGSFPFDGVVEPD7BV4AJ9D6.tif/jcr:content/renditions/cq5dam.web.1280.1280.jpeg",
+    "caption": "게 성운 중심 · 중심의 두 밝은 점 중 오른쪽이 중성자별이에요",
+    "credit": "NASA, ESA; J. Hester (ASU), M. Weisskopf (NASA/MSFC)"
+  },
+  "sn": {
+    "source": "https://www.nasa.gov/image-article/giant-mosaic-of-crab-nebula/",
+    "image": "https://www.nasa.gov/wp-content/uploads/2023/03/138785main_image_feature_460_ys_full.jpg",
+    "caption": "게 성운 · 폭발 순간이 아니라 초신성이 남긴 잔해예요",
+    "credit": "NASA, ESA, J. Hester (ASU)"
+  },
+  "bh": {
+    "source": "https://science.nasa.gov/resource/first-image-of-a-black-hole/",
+    "image": "https://assets.science.nasa.gov/content/dam/science/psd/solar/2023/09/b/blackhole_1600.jpg/jcr:content/renditions/cq5dam.web.1280.1280.jpeg",
+    "caption": "M87 초대질량 블랙홀의 그림자 · 별의 최후로 생긴 블랙홀과는 크기가 다른 관측 사례예요",
+    "credit": "Event Horizon Telescope Collaboration"
+  },
+  "sun": {
+    "source": "https://science.nasa.gov/sun/",
+    "image": "https://science.nasa.gov/wp-content/uploads/2023/05/pia03149-copy.jpg",
+    "caption": "주계열 별의 예: 태양 · 관측 파장에 따라 색이 달라요",
+    "credit": "NASA/JPL"
+  },
+  "supergiant": {
+    "source": "https://science.nasa.gov/asset/hubble/hubble-space-telescope-captures-first-direct-image-of-a-star/",
+    "image": "https://assets.science.nasa.gov/content/dam/science/missions/hubble/releases/1996/12/STScI-01EVTASFNAT35WSB0DW9XR49ZX.jpg/jcr:content/renditions/cq5dam.web.1280.1280.jpeg",
+    "caption": "적색초거성 베텔게우스 · 자외선 관측과 크기 비교",
+    "credit": "A. Dupree (CfA), R. Gilliland (STScI), NASA"
+  },
+  "brown": {
+    "source": "https://science.nasa.gov/photojournal/brown-dwarfs-in-our-backyard/",
+    "image": "https://assets.science.nasa.gov/content/dam/science/psd/photojournal/pia/pia17/pia17992/PIA17992.jpg/jcr:content/renditions/cq5dam.web.1280.1280.jpeg",
+    "caption": "갈색왜성 쌍 WISE J1049 · 적외선 관측",
+    "credit": "NASA/JPL-Caltech/Gemini Observatory/AURA/NSF"
+  }
+};
