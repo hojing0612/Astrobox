@@ -3,19 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#050814" />
+  <meta name="theme-color" content="#f7f9fc" />
   <meta name="description" content="AstroBox — 예측하고, 하나만 바꿔 보고, 내 말로 설명하는 AI 우주 탐구" />
-  <title>AstroBox — AI 우주 탐구</title>
+  <title>AstroBox — 호기심이 자라는 우주 탐구</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23050814'/%3E%3Ccircle cx='32' cy='32' r='10' fill='%235aa9ff'/%3E%3Cellipse cx='32' cy='32' rx='24' ry='9' fill='none' stroke='%23ff6237' stroke-width='3'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="portal.css" />
   <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
 </head>
 <body>
-  <header class="topbar"><a class="logo" href="#home"><img src="assets/penguin-128.png" alt="" width="28" height="28" style="vertical-align:middle;margin-right:6px">Astro<span>Box</span></a>
-    <nav class="nav"><a href="#home">미션</a><a href="#lab">자유 실험실</a><a href="#rocket">로켓 발사</a><a href="#stars">별의 생애</a><a href="#timeline">우주 138억 년</a><a href="#report">부모 리포트</a><a href="#account">계정</a></nav></header>
-  <main id="root"></main>
-  <footer class="credits">지구·달 이미지: NASA (Blue Marble 2004 · Black Marble 2016 · LRO LROC WAC) — 공개 자료. NASA는 이 서비스를 보증하지 않습니다.</footer>
-  <div class="toast" id="toast"></div>
+  <a class="skip-link" href="#root">본문 바로가기</a>
+  <div class="utility-bar"><div><span>우주에서 시작하는 과학 탐구</span><nav aria-label="이용 메뉴"><a href="#help">이용 안내</a><a href="#report">부모 리포트</a><a href="#account" id="headerAccount">로그인</a><a href="#account/signup" id="headerSignup">가족 계정 만들기</a></nav></div></div>
+  <header class="site-header"><div class="header-main"><a class="logo" href="#home" aria-label="AstroBox 홈"><span class="logo-symbol" aria-hidden="true">✦</span>Astro<span>Box</span><small>나만의 우주 실험실</small></a><button id="menuToggle" class="menu-toggle" type="button" aria-controls="mainNav" aria-expanded="false" aria-label="전체 메뉴 열기"><span></span><span></span><span></span></button><nav id="mainNav" class="nav" aria-label="주 메뉴"><a href="#home">탐구 홈</a><a href="#explore">탐구 둘러보기</a><a href="#learning">나의 탐구방</a><a href="#parents">부모님 가이드</a><a href="#plans">이용권</a><a href="#account" class="mobile-only">로그인 · 계정</a><a href="#help" class="mobile-only">이용 안내</a></nav><a href="#rocket" class="header-start">무료로 시작하기 ↗</a></div><nav id="activityNav" class="activity-nav" aria-label="탐구 바로가기" hidden><div><a href="#explore">전체 탐구</a><a href="#rocket">로켓 발사</a><a href="#m/m1">궤도 미션</a><a href="#lab">자유 실험실</a><a href="#stars">별 키우기</a><a href="#timeline">시간 여행</a></div></nav></header>
+  <main id="root" tabindex="-1"></main>
+  <footer class="site-footer"><div class="footer-main"><div><a class="logo" href="#home">Astro<span>Box</span></a><p>질문 하나로 시작해, 나만의 발견으로.<br>예측하고 실험하며 자라는 우주 탐구.</p></div><nav aria-label="하단 메뉴"><a href="#explore">탐구 둘러보기</a><a href="#parents">부모님 가이드</a><a href="#plans">이용권 안내</a><a href="#account">가족 계정</a><a href="#help">도움말 · 기록 안내</a></nav></div><div class="footer-bottom"><span>AstroBox · 교육용 프로토타입 · 현재 무료 데모 운영</span><span>지구·달 이미지: NASA. NASA는 이 서비스를 보증하지 않습니다.</span></div></footer>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="src/app.js"></script>
 </body>
 </html>

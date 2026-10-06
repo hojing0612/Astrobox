@@ -84,10 +84,24 @@ export class OrbitView3D {
     this.ship = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true })); this.scene.add(this.ship);
     this.glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.makeGlowTex(), color: 0xff6237, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false })); this.scene.add(this.glow);
     this.vArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, 0x46d49a, 0.35, 0.2); this.gArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 1, 0x5aa9ff, 0.35, 0.2); this.scene.add(this.vArrow, this.gArrow);
-    this.resize(); window.addEventListener('resize', () => this.resize());
+    this.resize(); this.onResize = () => this.resize(); window.addEventListener('resize', this.onResize);
     this.last = performance.now(); this.loop();
   }
   makeGlowTex() { if (this._glow) return this._glow; const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); this._glow = new THREE.CanvasTexture(c); return this._glow; }
+  dispose() {
+    this.disposed = true; this.playing = false; this.onTick = null;
+    cancelAnimationFrame(this.anim); window.removeEventListener('resize', this.onResize); this.controls.dispose();
+    const textures = new Set();
+    this.scene.traverse(obj => {
+      obj.geometry?.dispose();
+      for (const material of (Array.isArray(obj.material) ? obj.material : [obj.material]).filter(Boolean)) {
+        Object.values(material).forEach(value => { if (value?.isTexture) textures.add(value); });
+        Object.values(material.uniforms || {}).forEach(uniform => { if (uniform.value?.isTexture) textures.add(uniform.value); });
+        material.dispose();
+      }
+    });
+    textures.forEach(texture => texture.dispose()); this.renderer.dispose();
+  }
   resize() { const r = this.c.getBoundingClientRect(); const w = Math.max(1, r.width), h = Math.max(1, r.height); this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); const pr = this.renderer.getPixelRatio(); this.matAll.resolution.set(w * pr, h * pr); this.matDone.resolution.set(w * pr, h * pr); }
   show(result, play = true) {
     this.result = result; this.simTime = 0; this.playing = play; this.speed = Math.max(30, result.sim.t / 12);
@@ -106,7 +120,7 @@ export class OrbitView3D {
   }
   play() { this.playing = true; } pause() { this.playing = false; } toggle() { this.playing = !this.playing; return this.playing; } setRate(r) { this.rate = r; }
   stateAt(t) { const pts = this.result.sim.pts; let lo = 0, hi = pts.length - 1; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (pts[mid][4] <= t) lo = mid; else hi = mid; } const a = pts[lo], b = pts[hi]; const f = b[4] > a[4] ? Math.min(1, Math.max(0, (t - a[4]) / (b[4] - a[4]))) : 0; return { x: a[0] + (b[0] - a[0]) * f, y: a[1] + (b[1] - a[1]) * f, vx: a[2] + (b[2] - a[2]) * f, vy: a[3] + (b[3] - a[3]) * f, idx: lo }; }
-  loop() { requestAnimationFrame(() => this.loop()); const now = performance.now(); const dt = (now - this.last) / 1000; this.last = now; this.earth.rotation.y += dt * 0.04; this.clouds.rotation.y += dt * 0.055; this.moon.rotation.y += dt * 0.01; if (this.result && this.playing) { this.simTime += dt * this.speed * this.rate; const total = this.result.sim.t; if (this.simTime > total) this.simTime = (this.result.kind === 'orbit' && !this.result.sim.crashed) ? this.simTime % total : total; } this.draw(); }
+  loop() { if (this.disposed) return; this.anim = requestAnimationFrame(() => this.loop()); const now = performance.now(); const dt = (now - this.last) / 1000; this.last = now; this.earth.rotation.y += dt * 0.04; this.clouds.rotation.y += dt * 0.055; this.moon.rotation.y += dt * 0.01; if (this.result && this.playing) { this.simTime += dt * this.speed * this.rate; const total = this.result.sim.t; if (this.simTime > total) this.simTime = (this.result.kind === 'orbit' && !this.result.sim.crashed) ? this.simTime % total : total; } this.draw(); }
   draw() {
     this.controls.update();
     if (this.result) {
