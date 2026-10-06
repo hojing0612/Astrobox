@@ -1,12 +1,12 @@
 // 기록 — 로컬(localStorage)에 항상 저장하고, 로그인돼 있으면 서버(/api/sync)에 병합. 클라이언트 id로 중복 방지.
-import { current } from './account.js';
+import { current, storageKey } from './account.js';
 const KEY = 'astrobox.v1';
 const cid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-export function load() { try { return JSON.parse(localStorage.getItem(KEY)) || { events: [], cards: [] }; } catch { return { events: [], cards: [] }; } }
-export function save(db) { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {} }
+export function load() { try { return JSON.parse(localStorage.getItem(storageKey(KEY))) || { events: [], cards: [] }; } catch { return { events: [], cards: [] }; } }
+export function save(db) { try { localStorage.setItem(storageKey(KEY), JSON.stringify(db)); } catch {} }
 export function log(type, data) { const db = load(); db.events.push({ cid: cid(), t: Date.now(), type, ...data }); save(db); scheduleSync(); return db; }
 export function addCard(card) { const db = load(); db.cards.push({ cid: cid(), t: Date.now(), ...card }); save(db); scheduleSync(); return db; }
-export function reset() { try { localStorage.removeItem(KEY); } catch {} }
+export function reset() { try { localStorage.removeItem(storageKey(KEY)); } catch {} }
 let timer = null; export const syncState = { status: 'local', last: null, error: null };
 export function scheduleSync() { if (!current()) return; clearTimeout(timer); timer = setTimeout(() => sync().catch(() => {}), 800); }
 /** 로컬 ↔ 서버 병합. 서버가 없으면 local 상태 유지 */
@@ -18,7 +18,8 @@ export async function sync() {
     if (r.status === 401) { syncState.status = 'expired'; return null; }
     if (!r.ok) throw new Error('sync ' + r.status);
     const d = await r.json();
-    const merged = { events: mergeBy(db.events, d.events), cards: mergeBy(db.cards, d.cards) }; save(merged);
+    if (current()?.token !== acc.token) return null;
+    const latest = load(); const merged = { events: mergeBy(latest.events, d.events), cards: mergeBy(latest.cards, d.cards) }; save(merged);
     syncState.status = 'synced'; syncState.last = Date.now(); syncState.error = null; window.dispatchEvent(new CustomEvent('astrobox:synced')); return merged;
   } catch (e) { syncState.status = 'offline'; syncState.error = String(e.message); return null; }
 }

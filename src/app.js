@@ -28,7 +28,7 @@ function updateShell() {
   document.querySelectorAll('.nav a').forEach(a => { const on = a.getAttribute('href') === '#' + active; a.classList.toggle('active', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   const activityNav = $('#activityNav'); activityNav.hidden = !(['rocket','lab','stars','timeline'].includes(h) || h.startsWith('m/'));
   activityNav.querySelectorAll('a').forEach(a => { const on = a.hash === '#' + h || (a.hash === '#m/m1' && h.startsWith('m/')); if(on) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current'); });
-  $('#headerAccount').textContent = account.current() ? '가족 계정 관리' : '로그인';
+  $('#headerAccount').textContent = account.current() ? '내 계정' : '로그인';
   $('#headerSignup').hidden = !!account.current();
 }
 function setNav() { updateShell(); }
@@ -166,7 +166,7 @@ async function renderMission(id) {
       $('#tresult').innerHTML = `<b style="color:${ok ? 'var(--green)' : 'var(--amber)'}">${ok ? '새 조건에서도 맞췄어요 — 개념이 옮겨 갔어요' : '새 조건에서는 달랐어요 — 왜 그런지 화면을 봐요'}</b><br>${esc(res.observation)}`;
       store.log('transfer', { mission: m.id, correct: ok, choice: b.dataset.id }); if (ok) { toast('🏅 법칙 카드 획득: ' + m.lawCard); confetti(window.innerWidth / 2, window.innerHeight / 3, 120); penguinReact('happy'); sound.win(); } }, { once: true });
   }
-  $('#askParent').addEventListener('click', async () => { if (!next) { toast('마지막 미션이에요'); return; } if (unlock.isUnlocked(next.id)) { toast('이미 열려 있어요! 홈에서 시작해요'); return; } store.log('request', { mission: m.id, next: next.id }); const r = await unlock.requestNext(m.id, next.id); $('#askParent').textContent = '요청 보냄 · 부모님 확인 기다리는 중'; $('#askParent').disabled = true; toast(r.where === 'server' ? '부모님 화면으로 요청을 보냈어요' : '부모님 화면(이 기기)에 요청을 남겼어요'); });
+  $('#askParent').addEventListener('click', async e => { const button=e.currentTarget; if (!next) { toast('마지막 미션이에요'); return; } if (unlock.isUnlocked(next.id)) { toast('이미 열려 있어요! 홈에서 시작해요'); return; } button.disabled=true; try { const r=await unlock.requestNext(m.id,next.id); if(!button.isConnected)return; store.log('request',{mission:m.id,next:next.id}); button.textContent='요청 보냄 · 부모님 확인 기다리는 중'; toast(r.where==='server'?'연결된 학부모의 리포트에 요청을 남겼어요':'부모님 화면(이 기기)에 요청을 남겼어요'); } catch(err) { if(button.isConnected){button.disabled=false;toast(err.message);} } });
   if (next && unlock.isUnlocked(next.id)) { $('#askParent').textContent = '다음 미션 열려 있음 → 홈에서 시작'; }
 }
 function logToSlider(V, v) { return Math.round(1000 * (Math.log(v) - Math.log(V.min)) / (Math.log(V.max) - Math.log(V.min))); }
@@ -174,11 +174,12 @@ function sliderToLog(V, s) { const v = Math.exp(Math.log(V.min) + (s / 1000) * (
 
 // ---------------- REPORT
 async function renderReport() {
+  if (account.current()?.role === 'parent') return portal.renderFamily(true);
   setNav('report'); if (account.current()) await store.sync(); if (root.dataset.route !== 'report') return; const s = store.summary();
   const tot = (k) => Object.values(s.byMission).reduce((a, b) => a + (b[k] || 0), 0);
   const exp = tot('experiments'), coachN = tot('coach'), judged = tot('judged'), sup = tot('supported'), tr = tot('transfer'), trOk = tot('transferOk');
   root.innerHTML = `<div class="wrap" style="max-width:760px">
-    <div class="panel"><div class="eyebrow">부모 리포트 · 아이의 탐구 과정</div><h1>우주 탐구 기록</h1><p class="muted small">기록은 아이가 직접 쓴 문장과 코드의 판정 로그만 근거로 해요. 숫자는 전부 실제 활동에서 나온 값이에요. ${account.current() ? `☁️ ${esc(account.current().childName)}(${account.current().code}) 계정으로 서버에 저장됨${store.syncState.status === 'offline' ? ' — 지금은 서버 연결이 안 돼 이 기기 기록만 보여요' : ''}` : '이 브라우저에만 저장됨 — <a href="#account">가족 계정</a>을 만들면 다른 기기에서도 보여요'}</p>
+    <div class="panel"><div class="eyebrow">부모 리포트 · 아이의 탐구 과정</div><h1>우주 탐구 기록</h1><p class="muted small">기록은 아이가 직접 쓴 문장과 코드의 판정 로그만 근거로 해요. 숫자는 전부 실제 활동에서 나온 값이에요. ${account.current() ? `☁️ ${esc(account.current().childName)}(${account.current().code}) 계정으로 서버에 저장됨${store.syncState.status === 'offline' ? ' — 지금은 서버 연결이 안 돼 이 기기 기록만 보여요' : ''}` : '이 브라우저에만 저장됨 — <a href="#account">내 계정</a>으로 로그인하면 다른 기기에서도 보여요'}</p>
     ${exp === 0 ? `<div class="empty">아직 기록이 없어요. 첫 미션을 해 보면 여기에 쌓여요.</div>` : `
     <div class="kpis"><div class="kpi"><b>${s.missions.length}</b><span>시작한 미션</span></div><div class="kpi"><b>${exp}</b><span>직접 실험</span></div><div class="kpi"><b>${s.cards.length}</b><span>설명 카드</span></div></div>
     <div class="bar"><span>예측이 맞은 실험</span><div class="track"><i style="width:${judged ? Math.round(100 * sup / judged) : 0}%"></i></div><span>${sup} / ${judged}</span></div>
@@ -198,7 +199,8 @@ async function renderReport() {
 }
 async function renderParentBox() {
   const box = $('#parentBox'); if (!box) return;
-  const r = await unlock.fetchRequests(); if (!box.isConnected) return; const pending = r.requests.filter((x) => x.status === 'pending'); const pk = unlock.PACKS['pack-1']; const has = unlock.isUnlocked('m2');
+  if (account.current()?.role === 'student') { box.innerHTML = '<h2>학부모와 함께 보기</h2><p>가족 계정을 연결하면 학부모가 탐구 기록을 보고 다음 미션 요청을 처리할 수 있어요.</p><a href="#family" class="button blue">가족 계정 연결 →</a>'; return; }
+  let r; try { r = await unlock.fetchRequests(); } catch(e) { if(box.isConnected)box.innerHTML = '<p role="alert">'+esc(e.message)+'</p>'; return; } if (!box.isConnected) return; const pending = r.requests.filter((x) => x.status === 'pending'); const pk = unlock.PACKS['pack-1']; const has = unlock.isUnlocked('m2');
   box.innerHTML = `<h2 style="margin-top:18px">아이의 요청 ${pending.length ? `<span style="color:var(--accent)">· ${pending.length}건</span>` : ''}</h2>
     ${pending.length ? pending.map((q) => `<div class="law"><div class="m">${esc(byId(q.mission)?.title || q.mission)} 를 마치고 → <b>${esc(byId(q.next)?.title || q.next)}</b> 를 열어 달래요 · ${new Date(q.t).toLocaleString('ko-KR')}</div>
       <div style="display:flex;gap:8px;margin-top:8px"><button class="primary" data-approve="${q.id}" style="width:auto;padding:8px 14px">${has ? '열어주기' : '미션 팩 열고 승인'}</button><button class="secondary" data-decline="${q.id}">나중에</button></div></div>`).join('') : '<div class="empty small">아직 요청이 없어요. 아이가 미션을 마치면 「부모님께 요청하기」로 여기에 와요.</div>'}
@@ -307,7 +309,7 @@ function route() {
   root.dataset.route = h;
   root.innerHTML = '<div class="route-loading" role="status">탐구를 준비하고 있어요…</div>';
   window.scrollTo({top:0,behavior:'instant'});
-  const titles = {home:'탐구 홈',explore:'탐구 둘러보기',learning:'나의 탐구방',parents:'부모님 가이드',plans:'이용권',account:'가족 계정',help:'이용 안내',rocket:'로켓 발사',report:'부모 리포트',stars:'별 키우기',timeline:'우주 시간 여행',lab:'자유 실험실'};
+  const titles = {home:'탐구 홈',explore:'탐구 둘러보기',learning:'나의 탐구방',parents:'부모님 가이드',plans:'이용권',account:'계정',family:'가족 계정 연결',help:'이용 안내',rocket:'로켓 발사',report:'부모 리포트',stars:'별 키우기',timeline:'우주 시간 여행',lab:'자유 실험실'};
   document.title = (titles[h.split('/')[0]] || '궤도 미션') + ' | AstroBox';
   if (h === 'root') { root.focus(); return renderHome(); }
   if (h === 'explore' || h.startsWith('explore/')) return portal.renderExplore();
@@ -315,6 +317,7 @@ function route() {
   if (h === 'parents') return portal.renderParents();
   if (h === 'help') return portal.renderHelp();
   if (h === 'plans' || h === 'plans/checkout') return portal.renderPlans(h.endsWith('/checkout'));
+  if (h === 'family') return portal.renderFamily();
   if (h === 'account/signup') return portal.renderAccount('signup');
   if (h.startsWith('m/')) return renderMission(h.slice(2));
   if (h === 'rocket') return renderRocket();
