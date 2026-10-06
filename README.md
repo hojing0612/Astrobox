@@ -91,3 +91,18 @@ NASA 이미지는 공개 자료(저작권 없음)이지만 NASA 로고·보증 �
 기존 가족 계정은 같은 코드로 로그인하고 학생용/학부모용을 한 번 선택해 이어갑니다. 계정별 브라우저 저장소를 분리해 공동 기기에서 기록이 섞이지 않게 했습니다. 가입 전 비회원 기록은 자동으로 다른 계정에 업로드하지 않고 그대로 보관합니다. PIN 복구와 실제 카드 결제는 아직 지원하지 않습니다.
 
 검증: `npm test`에 PostgreSQL(PGlite) 기반 가입/로그인, 가족 연결/만료/재사용 방지/해제, 다른 계정 접근 차단, 학생에게만 무료 이용권 부여, 기존 계정 전환, 로컬 기록 분리, 늦은 동기화 응답 방지 검증을 포함합니다. UI는 `node tests/preview-server.mjs`로 실제 비밀값 없이 임시 DB에서 검수할 수 있습니다.
+
+
+### 별 키우기 단계별 관측 사진
+
+NASA 공개 과학 자료를 교육용으로 원문 링크와 크레딧을 표시하여 연결합니다. NASA의 보증을 뜻하지 않습니다. 개별 협력기관 크레딧을 유지하며 로고를 사용하지 않습니다. 사진은 같은 별의 연속 촬영이 아니라 단계별 다른 천체의 관측 사례입니다. 초신성은 잔해, 블랙홀은 M87의 EHT 관측 사진이며 이를 화면에 명시합니다.
+
+- 원시별 L1527 · 적외선 관측 — NASA, ESA, CSA, STScI — https://science.nasa.gov/asset/webb/l1527-and-protostar-nircam-image/
+- 적색거성 미라 · 허블 관측 — Margarita Karovska (CfA), NASA — https://science.nasa.gov/asset/hubble/red-giant-star-mira/
+- 고리 성운 · 가운데 작은 점이 백색왜성이에요 — NASA, ESA, Hubble Heritage (STScI/AURA)-ESA/Hubble Collaboration — https://science.nasa.gov/asset/hubble/hubble-captures-a-ring/
+- 게 성운 중심 · 중심의 두 밝은 점 중 오른쪽이 중성자별이에요 — NASA, ESA; J. Hester (ASU), M. Weisskopf (NASA/MSFC) — https://science.nasa.gov/asset/hubble/core-of-the-crab-nebula/
+- 게 성운 · 폭발 순간이 아니라 초신성이 남긴 잔해예요 — NASA, ESA, J. Hester (ASU) — https://www.nasa.gov/image-article/giant-mosaic-of-crab-nebula/
+- M87 초대질량 블랙홀의 그림자 · 별의 최후로 생긴 블랙홀과는 크기가 다른 관측 사례예요 — Event Horizon Telescope Collaboration — https://science.nasa.gov/resource/first-image-of-a-black-hole/
+- 주계열 별의 예: 태양 · 관측 파장에 따라 색이 달라요 — NASA/JPL — https://science.nasa.gov/sun/
+- 적색초거성 베텔게우스 · 자외선 관측과 크기 비교 — A. Dupree (CfA), R. Gilliland (STScI), NASA — https://science.nasa.gov/asset/hubble/hubble-space-telescope-captures-first-direct-image-of-a-star/
+- 갈색왜성 쌍 WISE J1049 · 적외선 관측 — NASA/JPL-Caltech/Gemini Observatory/AURA/NSF — https://science.nasa.gov/photojournal/brown-dwarfs-in-our-backyard/

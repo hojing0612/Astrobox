@@ -16,7 +16,7 @@ const STAGES = {
   ns: [{ name: '주계열', from: 0, to: 0.32, desc: '무거운 별은 뜨겁고 푸르게, 그리고 빨리 타요' }, { name: '적색초거성', from: 0.32, to: 0.56, desc: '엄청나게 부풀어요. 베텔게우스가 이 단계' }, { name: '초신성 폭발!', from: 0.56, to: 0.72, desc: '철 핵이 무너지며 폭발. 은하 하나만큼 밝아지고, 금·철 같은 원소를 우주에 뿌려요' }, { name: '중성자별', from: 0.72, to: 1, desc: '도시만 한 크기에 태양보다 무거워요. 1초에 수백 번 돌며 빛줄기를 쏘기도 해요' }],
   bh: [{ name: '주계열', from: 0, to: 0.32, desc: '아주 무거운 별은 몇백만 년밖에 못 살아요' }, { name: '적색초거성', from: 0.32, to: 0.56, desc: '태양 자리에 두면 목성 궤도까지 닿아요' }, { name: '초신성 폭발!', from: 0.56, to: 0.72, desc: '폭발하고 남은 핵이 너무 무거워서 중성자별로도 못 버텨요' }, { name: '블랙홀', from: 0.72, to: 1, desc: '빛도 못 빠져나와요. 주변 물질이 빨려 들며 빛나는 원반을 만들어요' }],
 };
-export const stagesFor = (m) => { const id = fateId(m); return STAGES[id === 'wd' && m < 0.5 ? 'wd_small' : id]; };
+export const stagesFor = (m) => { const id = fateId(m); const stages = STAGES[id === 'wd' && m < 0.5 ? 'wd_small' : id]; return [{ name: '원시별', from: 0, to: 0.12, desc: '가스와 먼지가 중력으로 모여 중심이 뜨거워져요. 아직 안정적인 수소 핵융합을 시작하기 전이에요' }, ...stages.map(s => ({ ...s, from: 0.12 + s.from * 0.88, to: 0.12 + s.to * 0.88 }))]; };
 
 export class StarView {
   constructor(canvas) {
@@ -43,7 +43,8 @@ export class StarView {
     let R = base, C = col, glow = 1, shape = 'star';
     if (this.p !== null) { // 일생 연출
       const p = this.p; const st = stagesFor(m); const cur = st.find((s) => p >= s.from && p < s.to + 1e-9) || st[st.length - 1]; const u = clamp((p - cur.from) / (cur.to - cur.from));
-      if (id === 'none') { R = base * (1 - u * 0.4); C = [140 + 60 * (1 - u), 60, 40]; glow = 0.6 * (1 - u) + 0.1; }
+      if (cur.name === '원시별') { R = base * lerp(1.8, 1, u); C = [255, 160, 90]; glow = 0.35 + u * 0.45; this.nebula(cx, cy, base, 0.3, 1 - u); }
+      else if (id === 'none') { R = base * (1 - u * 0.4); C = [140 + 60 * (1 - u), 60, 40]; glow = 0.6 * (1 - u) + 0.1; }
       else if (cur.name.startsWith('주계열')) { const pulse = 1 + 0.02 * Math.sin(f * 6); R = base * pulse; }
       else if (cur.name === '적색거성' || cur.name === '적색초거성') { const k = cur.name === '적색거성' ? 3.2 : 4.2; R = base * lerp(1, k, u * u); C = [255, lerp(col[1], 110, u), lerp(col[2], 60, u)]; glow = 0.8; }
       else if (cur.name === '행성상 성운') { R = base * lerp(3.2, 0.35, u); C = [lerp(255, 240, u), lerp(110, 240, u), lerp(60, 255, u)]; this.nebula(cx, cy, base, u); }
@@ -71,3 +72,4 @@ export class StarView {
   drawParts() { const g = this.g; const dt = 1 / 60; this.parts = this.parts.filter((p) => p.life > 0); for (const p of this.parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.995; p.vy *= 0.995; p.life -= dt; g.globalAlpha = clamp(p.life); g.fillStyle = p.c; g.beginPath(); g.arc(p.x, p.y, 2, 0, 7); g.fill(); } g.globalAlpha = 1; }
 }
 export { colorOf, radiusOf, lifetimeYears };
+
